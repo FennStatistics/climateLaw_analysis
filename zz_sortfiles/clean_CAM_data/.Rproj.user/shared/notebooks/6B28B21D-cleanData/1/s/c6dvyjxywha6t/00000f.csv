@@ -1,0 +1,6 @@
+"0","setwd(""functions_CAM"")"
+"2","Warning: The working directory was changed to /Users/nfrings/Documents/PhD/Studies/mental models/Swiss climate vote/Analysis_newest_Julius_NF/clean_CAM_data/functions_CAM inside a notebook chunk. The working directory will be reset when the chunk is finished running. Use the knitr root.dir option in the setup chunk to change the working directory for notebook chunks."
+"0","for(i in 1:length(dir())){"
+"0","  # print(dir()[i])"
+"0","  source(dir()[i], encoding = ""utf-8"")"
+"0","}"

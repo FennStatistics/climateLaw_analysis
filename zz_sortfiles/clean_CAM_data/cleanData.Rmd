@@ -1,0 +1,314 @@
+---
+title: "Covid-19 Perception: data cleaning and preperation (markdown)"
+author: "Julius Fenn"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    theme: united
+---
+
+
+
+Define your global settings: 
+
+* "save_CAMs_as_pictures": it is not needed to save every time CAMs as .json, .png files (see below)
+
+```{r globalSettings}
+compute_indicators_draw <- FALSE
+save_CAMs_as_pictures <- FALSE # only need to be done once
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load packages, data files and self-written functions
+
+## Remarks
+
+* The CAM data of the pre-study was analyzed using the programmed CAM-App: 
+  * [ShinyApp_v2](https://github.com/Camel-app/DataAnalysis) (most recent version)
+
+
+## load packages
+
+```{r load_packages, message = FALSE, warning=FALSE}
+library(shiny)
+# library(shinyWidgets)
+library(shinyjs)
+
+
+# library(shinycssloaders) %>% withSpinner(color="#0dc5c1")
+
+library(tidyverse)
+library(lubridate)
+
+library(magrittr)
+
+library(rjson) # write JSON files
+library(jsonlite) # read JSON files
+
+
+
+library(igraph)
+
+library(sortable)
+
+library(vroom)
+#library(xlsx)
+
+
+library(irr)
+
+
+library(stargazer)
+
+# library(qdap)
+library(qdap, include.only = c('syn')) # include single function
+library(qdapDictionaries)
+
+
+library(kableExtra) # APA 7 tables
+
+## for heatmap
+library(stats)
+library(heatmaply)
+library(plotly)
+library(RColorBrewer)
+
+
+library(tm)
+library(visNetwork)
+library(wordcloud)
+```
+
+## overwrite Prolific IDs
+
+Following code was used to overwrite the Prolific IDs by random numbers:
+
+
+
+## load data and create files
+
+Remark: "suppressMessages" to silence "map_dfr": printing in console that internally variables are renamed.
+
+
+
+## load functions
+
+Remark: all CAM functions are loaded (please **use only the most recent functions for your own analysis** provided in our GitHub repro: https://github.com/Camel-app/DataAnalysis/tree/main/www/functions_CAM)
+
+```{r load_functions, message = FALSE}
+setwd("functions_CAM")
+for(i in 1:length(dir())){
+  # print(dir()[i])
+  source(dir()[i], encoding = "utf-8")
+}
+```
+
+
+# Prepare data
+
+
+## set up CAM data
+
+Load CAM data
+
+```{r load_dataCAM, message = FALSE}
+setwd("data")
+### t1
+suppressMessages(read_file("t1_climateLawStudy.txt") %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '')) -> dat_CAM_t1
+
+raw_CAM_t1 <- list()
+for(i in 1:length(dat_CAM_t1)){
+  raw_CAM_t1[[i]] <- jsonlite::fromJSON(txt = dat_CAM_t1[[i]])
+}
+
+### t2
+suppressMessages(read_file("t2_climateLawStudy.txt") %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '')) -> dat_CAM_t2
+
+raw_CAM_t2 <- list()
+for(i in 1:length(dat_CAM_t2)){
+  raw_CAM_t2[[i]] <- jsonlite::fromJSON(txt = dat_CAM_t2[[i]])
+}
+
+### t2 control group
+suppressMessages(read_file("t2_climateLawStudy_controlGroup.txt") %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '')) -> dat_CAM_t2_controlGroup
+
+raw_CAM_t2_controlGroup <- list()
+for(i in 1:length(dat_CAM_t2_controlGroup)){
+  raw_CAM_t2_controlGroup[[i]] <- jsonlite::fromJSON(txt = dat_CAM_t2_controlGroup[[i]])
+}
+```
+
+
+## delete CAMs not needed
+
+
+```{r loadIDs, message = FALSE}
+setwd("data")
+t1_CAM_ID <- read.table(file = "survey_t1_CAM_IDs_clean.csv", header = TRUE, sep = ",")
+t2_CAM_ID <- read.table(file = "survey_t2_CAM_IDs_clean.csv", header = TRUE, sep = ",")
+t2_controlGroup_CAM_ID <- read.table(file = "survey_t2_controlGroup_CAM_IDs_clean.csv", header = TRUE, sep = ",")
+colnames(t2_controlGroup_CAM_ID) <- colnames(t2_CAM_ID)
+
+## get clean CAM data set
+# t1
+raw_CAM_clean_t1 <- list()
+h = 1
+for(i in 1:length(raw_CAM_t1)){
+  if(!is.null(raw_CAM_t1[[i]]$creator) && (raw_CAM_t1[[i]]$creator %in% t1_CAM_ID$participantID)){
+    raw_CAM_clean_t1[[h]] <- raw_CAM_t1[[i]]
+    raw_CAM_clean_t1[[h]]$idCAM <- paste0(raw_CAM_clean_t1[[h]]$idCAM, "_t1")
+    raw_CAM_clean_t1[[h]]$creator <- paste0(raw_CAM_clean_t1[[h]]$creator, "_t1")
+    h = h + 1
+  }
+}
+
+# t2
+raw_CAM_clean_t2 <- list()
+h = 1
+for(i in 1:length(raw_CAM_t2)){
+  if(!is.null(raw_CAM_t2[[i]]$creator) && (raw_CAM_t2[[i]]$creator %in% t2_CAM_ID$participantID)){
+    raw_CAM_clean_t2[[h]] <- raw_CAM_t2[[i]]
+    raw_CAM_clean_t2[[h]]$idCAM <- paste0(raw_CAM_clean_t2[[h]]$idCAM, "_t2")
+    raw_CAM_clean_t2[[h]]$creator <- paste0(raw_CAM_clean_t2[[h]]$creator, "_t2")
+    h = h + 1
+  }
+}
+
+# t2 control group
+raw_CAM_clean_t2_controlGroup <- list()
+h = 1
+for(i in 1:length(raw_CAM_t2_controlGroup)){
+  if(!is.null(raw_CAM_t2_controlGroup[[i]]$creator) && (raw_CAM_t2_controlGroup[[i]]$creator %in% t2_controlGroup_CAM_ID$participantID)){
+    raw_CAM_clean_t2_controlGroup[[h]] <- raw_CAM_t2_controlGroup[[i]]
+    raw_CAM_clean_t2_controlGroup[[h]]$idCAM <- paste0(raw_CAM_clean_t2_controlGroup[[h]]$idCAM, "_t2_controlGroup")
+    raw_CAM_clean_t2_controlGroup[[h]]$creator <- paste0(raw_CAM_clean_t2_controlGroup[[h]]$creator, "_t2_controlGroup")
+    h = h + 1
+  }
+}
+
+
+
+raw_CAM_clean_ALL <- c(raw_CAM_clean_t1, raw_CAM_clean_t2, raw_CAM_clean_t2_controlGroup)
+setwd("../output")
+## paste clean CAM into txt file
+writeLines("", "CAMdata_all.txt") # create file
+text_connection <- file("CAMdata_all.txt", "a") # open connection to append
+
+for(i in 1:length(raw_CAM_clean_ALL)){
+    writeLines(jsonlite::toJSON(x = raw_CAM_clean_ALL[[i]]), text_connection)
+}
+close(text_connection) # close connection
+
+
+
+## get missing ID
+# sort(table(t1_CAM_ID$CAM_ID))
+# tmp_vec_creator <- c()
+# for(i in 1:length(raw_CAM_clean)){
+#   tmp_vec_creator[i] <- raw_CAM_clean[[i]]$creator
+# }
+# t1_CAM_ID$CAM_ID[!t1_CAM_ID$CAM_ID %in% tmp_vec_creator]
+
+```
+
+
+Create CAM files, draw CAMs and compute network indicators
+
+```{r create_draw_NI_dataCAM, message = FALSE}
+if(compute_indicators_draw){
+  ########################################
+# create CAM single files (nodes, connectors, merged)
+########################################
+CAMfiles <- create_CAMfiles(datCAM = raw_CAM_clean_ALL, reDeleted = TRUE)
+
+########################################
+# draw CAMs
+########################################
+CAMdrawn <- draw_CAM(dat_merged = CAMfiles[[3]],
+                     dat_nodes = CAMfiles[[1]],ids_CAMs = "all",
+                     plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+
+########################################
+# draw CAMs
+########################################
+tmp_microIndicator <- NULL # c("Klimagesetz")
+networkIndicators <- compute_indicatorsCAM(drawn_CAM = CAMdrawn, 
+                                           micro_degree = tmp_microIndicator, 
+                                           micro_valence = tmp_microIndicator, 
+                                           micro_centr_clo = tmp_microIndicator, 
+                                           micro_transitivity = tmp_microIndicator, 
+                                           largestClique = FALSE)
+}
+```
+
+
+
+
+### save CAMs as .json files, and as .png (igraph)
+
+
+```{r saveCAMs_pictures, message = FALSE}
+if(save_CAMs_as_pictures){
+  setwd("output")
+if(!exists(x = "saved CAMs as JSON, PNG files")){
+  dir.create(path = "saved CAMs as JSON, PNG files")
+}
+setwd("saved CAMs as JSON, PNG files")
+
+### remove all files if there are any
+if(length(list.files()) >= 1){
+  file.remove(list.files())
+  cat('\n!
+      all former files have been deleted')
+}
+
+### if no participant ID was provided replace by randomly generated CAM ID
+if(all(CAMfiles[[3]]$participantCAM.x == "noID")){
+  CAMfiles[[3]]$participantCAM.x <- CAMfiles[[3]]$CAM.x
+}
+
+
+### save as .json files, and as .png (igraph)
+ids_CAMs <- unique(CAMfiles[[3]]$participantCAM.x); length(ids_CAMs)
+
+for(i in 1:length(ids_CAMs)){
+  save_graphic(filename = paste0(ids_CAMs[i]))
+  CAM_igraph <- CAMdrawn[[c(1:length(CAMdrawn))[
+    names(CAMdrawn) == paste0(unique(CAMfiles[[3]]$participantCAM.x)[i])]]]
+  plot(CAM_igraph, edge.arrow.size = .7,
+       layout=layout_nicely, vertex.frame.color="black", asp = .5, margin = -0.1,
+       vertex.size = 10, vertex.label.cex = .9)
+  dev.off()
+}
+
+for(i in 1:length(ids_CAMs)){
+  if(!is_empty(raw_CAM_clean_ALL[[i]]$nodes)){
+    if(nrow(raw_CAM_clean_ALL[[i]]$nodes) > 5){
+      write(toJSON(raw_CAM_clean_ALL[[i]], encoding = "UTF-8"),
+            paste0(raw_CAM_clean_ALL[[i]]$idCAM, ".json"))
+    }
+  }
+}
+
+# dev.off()
+}
+```

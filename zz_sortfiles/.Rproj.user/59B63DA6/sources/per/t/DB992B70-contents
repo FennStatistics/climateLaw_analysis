@@ -1,0 +1,42 @@
+---
+title: "check fake CAMS t2 control "
+author: "Nina Frings & Julius Fenn"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+  word_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+
+```{r loadPackagesData, include=TRUE}
+################
+# load packages
+################
+library(igraph)
+
+################
+# load data
+################
+CAMdrawn_t2_controlGroup <- readRDS(file = "CAMdrawn_t2_controlGroup.rds")
+CAMdrawn_t2_controlGroup_fake <- readRDS(file = "CAMdrawn_t2_controlGroup_fake.rds")
+```
+
+```{r plotCAMs, include=TRUE}
+################
+# plot automatically identified fake CAMs
+################
+for(i in 1:length(CAMdrawn_t2_controlGroup_fake$ID_fakeCAMs)){
+  print(CAMdrawn_t2_controlGroup_fake$ID_fakeCAMs[i])
+  plot(CAMdrawn_t2_controlGroup[[CAMdrawn_t2_controlGroup_fake$ID_fakeCAMs[i]]], edge.arrow.size = .5,
+     layout=layout_nicely, vertex.frame.color="black", asp = .5, margin = -0.1,
+     vertex.size = 5, vertex.label.cex = .9)
+}
+```

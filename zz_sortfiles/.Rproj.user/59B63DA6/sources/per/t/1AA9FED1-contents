@@ -1,0 +1,697 @@
+---
+title: "Data Analysis Climate Law Study"
+author: "Nina Frings & Julius Fenn"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+  word_document:
+    toc: yes
+    toc_depth: '3'
+bibliography: Library_subset.bib
+biblio-style: apalike
+link-citations: yes
+---
+
+
+```{css, echo=FALSE}
+.CSSoutput {
+  background-color: white;
+  border: 1px solid black;
+}
+```
+```{r setup chunks, include=FALSE}
+knitr::opts_chunk$set(class.source = "CSSoutput",
+                      eval = TRUE, echo = TRUE, include = TRUE,      
+                      fig.align='center', fig.show='asis',
+                      size='footnotesize')
+
+```
+
+
+
+```{r packages, include=FALSE}
+# reset R environment
+# rm(list=ls(all=TRUE)) # ! not needed in rmarkdown, but good practice
+# graphics.off() # ! not needed in rmarkdown
+
+################
+# install and load packages
+################
+#  if packages are not already installed, the function will install and activate them
+usePackage <- function(p) {
+  if (!is.element(p, installed.packages()[,1]))
+    install.packages(p, dep = TRUE, repos = "http://cran.us.r-project.org")
+  require(p, character.only = TRUE)
+}
+
+usePackage("tidyverse") # data cleaning and summarizing
+usePackage("jsonlite") # load SPSS, ... data 
+
+## psychometric analysis
+usePackage("moments") # skewness, kurtosis
+usePackage("psych")
+
+## hypothesis tests
+usePackage("ggstatsplot")
+
+## CAM
+usePackage("igraph") # load SPSS, ... data 
+
+
+
+## outputs
+usePackage("stargazer") # create tables
+usePackage("DT") # create dynamic tables
+
+## wordlists
+usePackage("tm")
+
+rm(usePackage)
+```
+
+```{r additionalFunctions, include=FALSE}
+################
+# install and load packages
+################
+## load own functions
+setwd("functions")
+source(file = "getDescriptives.R", encoding = "UTF-8")
+source(file = "saveGraphic.R", encoding = "UTF-8")
+source(file = "identifyFakeCAMs.R", encoding = "UTF-8")
+setwd("..") # ! not needed in rmarkdown, but good practice
+
+
+## load CAM App functions
+setwd("functions_CAMapp")
+# for(f in list.files(pattern = ".R")){
+#   source(file = f, encoding = "UTF-8")
+# }
+source(file = "create_CAMfiles.R", encoding = "UTF-8")
+source(file = "draw_CAM.R", encoding = "UTF-8")
+source(file = "compute_indicatorsCAM.R", encoding = "UTF-8")
+source(file = "create_wordlist2.R", encoding = "UTF-8")
+source(file = "helperFunctions.R", encoding = "UTF-8")
+setwd("..") # ! not needed in rmarkdown, but good practice
+```
+
+
+# Background Information
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) document. Instructions for writing these documents and background information can be found in the book written by @xieMarkdownDefinitiveGuide2018 When you execute code within the document, the results appear beneath the code. 
+
+The file include all analysis code for the published article XYZ. In the article a multi-method approach was applied, whereby two modes of data collection - Cognitive-Affective Maps (CAM) and surveys - in accordance with two statistical procedures - graph theory [e.g., @newmanNetworksIntroduction2018] and Latent Variable Models [e.g., @skrondalGeneralizedLatentVariable2004] - have been combined. 
+
+The analyses in the file are separated by a pre-processing step (clean, transform data) and an analysis step (test hypotheses and exploratory analyses), which follows the classical data-analysis pipeline [see @pengArtDataScience2016; @wickhamDataScienceImport2017]. 
+
+
+*global variables* (feel free to change):
+
+```{r globalVariables, include=TRUE}
+saveFakeCAMs = FALSE
+```
+
+
+
+# Analysis
+
+## Pre-processing step
+
+### Survey data
+
+The survey data was collected using the [Qualtrics-Software](https://www.qualtrics.com/).
+
+
+```{r loadPrepareClean_survey, include=TRUE}
+################
+# load data
+################
+## t1
+survey_p1_t1 <- read.csv(file = "data/t1/Klimagesetz.wave1.Teil1.csv", encoding = "UTF-8")
+survey_p1_t1 <- survey_p1_t1[-c(1,2), ]
+survey_p2_t1 <- read.csv(file = "data/t1/Klimagesetz.wave1.Teil2.csv", encoding = "UTF-8")
+survey_p2_t1 <- survey_p2_t1[-c(1,2), ]
+
+## t2
+survey_p1_t2 <- read.csv(file = "data/t2/Klimagesetz.wave2.Teil1.csv", encoding = "UTF-8")
+survey_p1_t2 <- survey_p1_t2[-c(1,2), ]
+survey_p2_t2 <- read.csv(file = "data/t2/Klimagesetz.wave2.Teil2.csv", encoding = "UTF-8")
+survey_p2_t2 <- survey_p2_t2[-c(1,2), ]
+
+## t2 control group
+survey_p1_t2_controlGroup <- read.csv(file = "data/t2_controlGroup/Klimagesetz.control.Teil1.csv", encoding = "UTF-8")
+survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup[-c(1,2), ]
+survey_p2_t2_controlGroup <- read.csv(file = "data/t2_controlGroup/Klimagesetz.control.Teil2.csv", encoding = "UTF-8")
+survey_p2_t2_controlGroup <- survey_p2_t2_controlGroup[-c(1,2), ]
+
+################
+# prepare data
+################
+survey_p1_t1$participantID <- as.character(x = survey_p1_t1$u)
+survey_p2_t1$participantID <- as.character(x = survey_p2_t1$participantID)
+# remove all with no IDs
+survey_p1_t1 <- survey_p1_t1 %>% filter(!participantID=="")
+survey_p2_t1 <- survey_p2_t1 %>% filter(!participantID=="")
+
+survey_p1_t2$participantID <- as.character(x = survey_p1_t2$u)
+survey_p2_t2$participantID <- as.character(x = survey_p2_t2$participantID)
+# remove all with no IDs
+survey_p1_t2 <- survey_p1_t2 %>% filter(!participantID=="")
+survey_p2_t2 <- survey_p2_t2 %>% filter(!participantID=="")
+
+survey_p1_t2_controlGroup$participantID <- as.character(x = survey_p1_t2_controlGroup$u)
+survey_p2_t2_controlGroup$participantID <- as.character(x = survey_p2_t2_controlGroup$participantID)
+# remove all with no IDs
+survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup %>% filter(!participantID=="")
+survey_p2_t2_controlGroup <- survey_p2_t2_controlGroup %>% filter(!participantID=="")
+
+
+################
+# clean data
+################
+
+## remove IDs 
+# test ID from innofact
+survey_p1_t2 <- survey_p1_t2 %>% filter(!participantID=="ddde09e8ac4604983c2e313df3672338")
+survey_p2_t2 <- survey_p2_t2 %>% filter(!participantID=="ddde09e8ac4604983c2e313df3672338")
+survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup %>% filter(!participantID=="523aa001f490a2e04b04eac38f3bf6f9")
+
+
+############ adjust / prepare data formats of survey (e.g. age to numeric)
+# XYZ!!!
+### age as numeric
+survey_p1_t1$age.n <- as.numeric(survey_p1_t1$age)
+survey_p1_t2_controlGroup$age.n <- as.numeric(survey_p1_t2_controlGroup$age)
+# age categories according to the quotas we received by innofact to check representativeness
+survey_p1_t1$age.cat <- cut(survey_p1_t1$age.n, breaks=c(17, 29, 39, 49, 59, 81) )
+survey_p1_t2_controlGroup$age.cat <- cut(survey_p1_t2_controlGroup$age.n, breaks=c(17, 29, 39, 49, 59, 81) )
+
+
+############ remove participants with multiple IPs / Spam status?
+# XYZ!!!
+
+# #> with duplicated IP
+# df1_pre.control <- df1_pre.control[!df1_pre.control$duplicate.IP, ]
+# df1_pre.control <- df1_pre.control[!df1_pre.control$duplicate.IP, ]
+# #> flagged as SPAM
+# df1_pre.control <- df1_pre.control[!df1_pre.control$Status == "Spam", ]
+# df2_post.control <- df2_post.control[!df2_post.control$Status == "Spam", ]
+```
+
+
+
+
+
+### CAM data
+
+The CAM data was collected using the C.A.M.E.L. software [@Fenn_Cognitive-Affective_Maps_extended_2023], hosted on a [JATOS-server](https://www.jatos.org/).
+
+
+*load and create CAM data*
+```{r load_CAM, include=TRUE}
+################
+# load data
+################
+## data at t1
+read_file('data/t1/t1_climateLawStudy.txt') %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '') -> dfCAM_t1
+
+dfCAM_t1_list <- list()
+for(i in 1:length(dfCAM_t1)){
+  dfCAM_t1_list[[i]] <- jsonlite::fromJSON(txt = dfCAM_t1[[i]])
+}
+
+## data at t2 - longitudinal
+read_file('data/t2/t2_climateLawStudy.txt') %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '') -> dfCAM_t2
+
+dfCAM_t2_list <- list()
+for(i in 1:length(dfCAM_t2)){
+  dfCAM_t2_list[[i]] <- jsonlite::fromJSON(txt = dfCAM_t2[[i]])
+}
+
+## data at t2 - cross-sectional (control group)
+read_file('data/t2_controlGroup/t2_climateLawStudy_controlGroup.txt') %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '') -> dfCAM_t2_controlGroup
+
+dfCAM_t2_controlGroup_list <- list()
+for(i in 1:length(dfCAM_t2_controlGroup)){
+  dfCAM_t2_controlGroup_list[[i]] <- jsonlite::fromJSON(txt = dfCAM_t2_controlGroup[[i]])
+}
+
+
+################
+# create data
+################
+## data at t1
+#> create CAM single files (nodes, connectors, merged)
+CAMfiles_t1 <- create_CAMfiles(datCAM = dfCAM_t1_list, reDeleted = TRUE, verbose = FALSE)
+#> draw CAMs
+CAMdrawn_t1 <- draw_CAM(dat_merged = CAMfiles_t1[[3]],
+                     dat_nodes = CAMfiles_t1[[1]],ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+
+## data at t2 - longitudinal
+#> create CAM single files (nodes, connectors, merged)
+CAMfiles_t2 <- create_CAMfiles(datCAM = dfCAM_t2_list, reDeleted = TRUE, verbose = FALSE)
+#> draw CAMs
+CAMdrawn_t2 <- draw_CAM(dat_merged = CAMfiles_t2[[3]],
+                     dat_nodes = CAMfiles_t2[[1]],ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+
+## data at t2 - cross-sectional (control group)
+#> create CAM single files (nodes, connectors, merged)
+CAMfiles_t2_controlGroup <- create_CAMfiles(datCAM = dfCAM_t2_controlGroup_list, reDeleted = TRUE, verbose = FALSE)
+#> draw CAMs
+CAMdrawn_t2_controlGroup <- draw_CAM(dat_merged = CAMfiles_t2_controlGroup[[3]],
+                     dat_nodes = CAMfiles_t2_controlGroup[[1]],ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+```
+
+*clean CAM data*
+
+```{r loadDictionary_CAM, include=TRUE}
+########################################
+# dictionary
+########################################
+setwd("data dictionaries")
+### german
+dict_german <- readr::read_table(file = "de_frami.txt", col_names = TRUE)
+
+dict_german <- str_subset(string = dict_german$words, pattern = "/")
+dict_german <- str_remove_all(string = dict_german, pattern = "/.*$")
+dict_german <- str_subset(string = dict_german, pattern = "^[[:alpha:]]{2,}")
+dict_german <- c(dict_german, "globale", "KOGNITIVE", "Modelle", "Nutzeneffekte", "Faktoren", "Soziale")
+dict_german <- tolower(x = dict_german)
+dict_german <- dict_german[nchar(x = dict_german) >= 5]
+dict_german <- unique(dict_german)
+
+
+dict_german <- c("nur", "elektro", "teuerung", "klimaschutz", "klima", "co2", "subventionen", "Stromfresser", "Landwirtschaft", "veränderungen","stromfresser", "Treibhausgase","Stromversorgung", "Veränderungen", "Subventionen","Klimaneutralität", "Umweltschutz", "Energiesparen", "erneuerbare", "Strom",dict_german)
+dict_german <- unique(dict_german)
+
+
+## to swiss german
+dict_german <- str_replace_all(string = dict_german, pattern = "ß", replacement = "ss")
+setwd("..")
+```
+
+
+```{r clean_CAM, include=TRUE}
+################
+# clean data
+################
+# identify fake CAMs using a dictionary
+CAMdrawn_t1_fake <- identifyFakeCAMs(CAMdrawn = CAMdrawn_t1)
+CAMdrawn_t2_fake <- identifyFakeCAMs(CAMdrawn = CAMdrawn_t2)
+CAMdrawn_t2_controlGroup_fake <- identifyFakeCAMs(CAMdrawn = CAMdrawn_t2_controlGroup)
+
+# check all so identified CAMs manually
+if(saveFakeCAMs){
+  setwd("output")
+    saveRDS(CAMdrawn_t1, file = "checkFakeCAMs/CAMdrawn_t1.rds")
+    saveRDS(CAMdrawn_t2, file = "checkFakeCAMs/CAMdrawn_t2.rds")
+    saveRDS(CAMdrawn_t2_controlGroup, file = "checkFakeCAMs/CAMdrawn_t2_controlGroup.rds")
+    
+    saveRDS(CAMdrawn_t1_fake, file = "checkFakeCAMs/CAMdrawn_t1_fake.rds")
+    saveRDS(CAMdrawn_t2_fake, file = "checkFakeCAMs/CAMdrawn_t2_fake.rds")
+    saveRDS(CAMdrawn_t2_controlGroup_fake, file = "checkFakeCAMs/CAMdrawn_t2_controlGroup_fake.rds")
+    setwd("..")
+}
+saveRDS(CAMdrawn_t2, file = "output/checkFakeCAMs/CAMdrawn_t2.rds")
+saveRDS(CAMdrawn_t2_fake, file = "output/checkFakeCAMs/CAMdrawn_t2_fake.rds")
+saveRDS(CAMdrawn_t1, file = "output/checkFakeCAMs/CAMdrawn_t1.rds")
+saveRDS(CAMdrawn_t1_fake, file = "output/checkFakeCAMs/CAMdrawn_t1_fake.rds")
+
+```
+
+```{r, include = FALSE, warning=FALSE, error=FALSE}
+################
+# clean data
+################
+## check fake CAMs for accidental errors ##
+
+##CAM t2 ###
+for(i in 1:length(CAMdrawn_t2_fake$ID_fakeCAMs)){
+   print(CAMdrawn_t2_fake$ID_fakeCAMs[i])
+  plot(CAMdrawn_t2[[CAMdrawn_t2_fake$ID_fakeCAMs[i]]], edge.arrow.size = .5,
+     layout=layout_nicely, vertex.frame.color="black", asp = .5, margin = -0.1,
+     vertex.size = 5, vertex.label.cex = .9, main=CAMdrawn_t2_fake$ID_fakeCAMs[i])
+}
+for(i in 1:length(CAMdrawn_t1_fake$ID_fakeCAMs)){
+   print(CAMdrawn_t1_fake$ID_fakeCAMs[i])
+  plot(CAMdrawn_t1[[CAMdrawn_t1_fake$ID_fakeCAMs[i]]], edge.arrow.size = .5,
+     layout=layout_nicely, vertex.frame.color="black", asp = .5, margin = -0.1,
+     vertex.size = 5, vertex.label.cex = .9, main=CAMdrawn_t1_fake$ID_fakeCAMs[i] )
+}
+############ adjust manually ID_fakeCAMs:
+# not fake in wave 2
+CAMdrawn_t2_fakeId <- as.data.frame(CAMdrawn_t2_fake$ID_fakeCAMs) %>% rename(fakeCAMSid = 'CAMdrawn_t2_fake$ID_fakeCAMs')
+CAMdrawn_t2_fakeId_clean <- CAMdrawn_t2_fakeId %>% filter(!fakeCAMSid=="9c80bd31f2e12d9029df14bb902e6c90" & !fakeCAMSid=="494a4e260e28aeb10f05650d10032145") %>%
+  select(fakeCAMSid)
+
+# not fake in wave 1
+CAMdrawn_t1_fakeId <- as.data.frame(CAMdrawn_t1_fake$ID_fakeCAMs) %>% rename(fakeCAMSid = 'CAMdrawn_t1_fake$ID_fakeCAMs')
+CAMdrawn_t1_fakeId_clean <- CAMdrawn_t1_fakeId %>% filter(!fakeCAMSid=="18bb2e604239a661fe6e620fb3c19bfd" & !fakeCAMSid=="674e92e1ad74d74b5eae470bd364556d" & !fakeCAMSid=="90504081eb1ac2bf8761805ea2511948" & !fakeCAMSid=="60ac1c4f664ed5acd4abde2641d83858" ) %>%
+  select(fakeCAMSid)
+
+################
+# keep only data without fake entries
+################
+CAMdrawn_t1_clean <- CAMdrawn_t1[!names(CAMdrawn_t1) %in% CAMdrawn_t1_fakeId_clean$fakeCAMSid]
+CAMdrawn_t2_clean <- CAMdrawn_t2[!names(CAMdrawn_t2) %in% CAMdrawn_t2_fakeId_clean$fakeCAMSid]
+CAMdrawn_t2_controlGroup_clean <- CAMdrawn_t2_controlGroup[!names(CAMdrawn_t2_controlGroup) %in% CAMdrawn_t2_controlGroup_fake$ID_fakeCAMs]
+```
+
+
+*compute network indicators*
+
+
+```{r}
+##### CAMEL
+## code ambivalent as 0 - change for all data sets
+CAMfiles_t1[[1]]$value <- ifelse(test = CAMfiles_t1[[1]]$value == 10, yes = 0, no = CAMfiles_t1[[1]]$value)
+CAMfiles_t1[[3]]$value <- ifelse(test = CAMfiles_t1[[3]]$value == 10, yes = 0, no = CAMfiles_t1[[3]]$value)
+
+CAMfiles_t2[[1]]$value <- ifelse(test = CAMfiles_t2[[1]]$value == 10, yes = 0, no = CAMfiles_t2[[1]]$value)
+CAMfiles_t2[[3]]$value <- ifelse(test = CAMfiles_t2[[3]]$value == 10, yes = 0, no = CAMfiles_t2[[3]]$value)
+
+CAMfiles_t2_controlGroup[[1]]$value <- ifelse(test = CAMfiles_t2_controlGroup[[1]]$value == 10, yes = 0, no = CAMfiles_t2_controlGroup[[1]]$value)
+CAMfiles_t2_controlGroup[[3]]$value <- ifelse(test = CAMfiles_t2_controlGroup[[3]]$value == 10, yes = 0, no = CAMfiles_t2_controlGroup[[3]]$value)
+
+
+## remove all data sets where no meaningfull CAM was provided
+CAMfiles_t1[[1]] <- CAMfiles_t1[[1]][CAMfiles_t1[[1]]$participantCAM %in% names(CAMdrawn_t1_clean), ]
+CAMfiles_t1[[2]] <- CAMfiles_t1[[2]][CAMfiles_t1[[2]]$participantCAM %in% names(CAMdrawn_t1_clean), ]
+CAMfiles_t1[[3]] <- CAMfiles_t1[[3]][CAMfiles_t1[[3]]$participantCAM.x %in% names(CAMdrawn_t1_clean), ]
+
+CAMfiles_t2[[1]] <- CAMfiles_t2[[1]][CAMfiles_t2[[1]]$participantCAM %in% names(CAMdrawn_t2_clean), ]
+CAMfiles_t2[[2]] <- CAMfiles_t2[[2]][CAMfiles_t2[[2]]$participantCAM %in% names(CAMdrawn_t2_clean), ]
+CAMfiles_t2[[3]] <- CAMfiles_t2[[3]][CAMfiles_t2[[3]]$participantCAM.x %in% names(CAMdrawn_t2_clean), ]
+
+CAMfiles_t2_controlGroup[[1]] <- CAMfiles_t2_controlGroup[[1]][CAMfiles_t2_controlGroup[[1]]$participantCAM.x %in% names(CAMdrawn_t2_controlGroup_clean), ]
+CAMfiles_t2_controlGroup[[2]] <- CAMfiles_t2_controlGroup[[2]][CAMfiles_t2_controlGroup[[2]]$participantCAM.x %in% names(CAMdrawn_t2_controlGroup_clean), ]
+CAMfiles_t2_controlGroup[[3]] <- CAMfiles_t2_controlGroup[[3]][CAMfiles_t2_controlGroup[[3]]$participantCAM.x %in% names(CAMdrawn_t2_controlGroup_clean), ]
+
+
+## rename identical terms
+nodes_t1_renamed <- rename_identicalTerms(dat_nodes = CAMfiles_t1[[1]], drawn_CAM = CAMdrawn_t1_clean)
+nodes_t2_renamed <- rename_identicalTerms(dat_nodes = CAMfiles_t2[[1]], drawn_CAM = CAMdrawn_t2_clean)
+# nodes_t2_controlGroup_renamed <- rename_identicalTerms(dat_nodes = CAMfiles_t2_controlGroup[[1]], drawn_CAM = CAMdrawn_t2_controlGroup_clean)
+
+## draw CAMs second time
+CAMdrawn_t1_clean_renamed <- draw_CAM(dat_merged = CAMfiles_t1[[3]],
+                     dat_nodes = nodes_t1_renamed,ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+
+CAMdrawn_t2_clean_renamed <- draw_CAM(dat_merged = CAMfiles_t2[[3]],
+                     dat_nodes = nodes_t2_renamed,ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+
+
+
+### CAM indicators
+CAMindicators_t1 <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_t1_clean_renamed,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+
+CAMindicators_t2 <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_t2_clean,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+
+CAMindicators_t2_controlGroup <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_t2_controlGroup_clean,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+```
+
+
+
+### merge data
+
+
+
+```{r mergeData, include=TRUE}
+################
+# load ID data set to merge t1 and t2
+################
+df_IDs_merge <- read.csv(file = "data/Match_participantID.csv", encoding = "UTF-8", sep=";")
+df_IDs <- df_IDs_merge %>% select(participantID.wave1, participantID.wave2)
+df_IDs <- unique(df_IDs)
+
+
+################
+# merge data sets
+################
+survey_t1 <- merge(x = survey_p1_t1, y = survey_p2_t1, by = c("participantID", "participantID"))
+survey_t2 <- merge(x = survey_p1_t2, y = survey_p2_t2, by = c("participantID", "participantID"))
+survey_t2_controlGroup <- merge(x = survey_p1_t2_controlGroup, y = survey_p2_t2_controlGroup, by = c("participantID", "participantID"))
+
+############ adjust / prepare data formats of survey (e.g. age to numeric)
+# XYZ!!!
+
+### time, political orientation and intended vote
+survey_t1 <- survey_t1 %>% mutate(
+  time = as.numeric(round(difftime(EndDate.y,StartDate.x, units= "mins"),2) ),
+  time.mins = round(time,0),
+  
+  poltical.orientation = as.numeric(politicalorientation_1),
+  vote = factor(intended.vote, levels=c("Ja", "Nein"), labels=c("yes", "no")),
+)
+survey_t2 <- survey_t2 %>% mutate(
+  time = as.numeric(round(difftime(EndDate.y,StartDate.x, units= "mins"),2) ),
+  time.mins = round(time,0),
+  vote = factor(intended.vote,  labels=c("yes.already", "no.already","yes", "no")),
+)
+survey_t2_controlGroup <- survey_t2_controlGroup %>% mutate(
+  time = as.numeric(round(difftime(EndDate.y,StartDate.x, units= "mins"),2) ),
+  time.mins = round(time,0),
+  poltical.orientation = as.numeric(politicalorientation_1),
+  vote = factor(intended_vote,  labels=c("yes.already", "no.already","yes", "no")),
+)
+### evaluation of law
+# 2 items into numeric and mean of both items
+survey_t1 <- survey_t1 %>%
+  mutate (rating_positive_1 = as.numeric(rating_positive_1),
+          rating_favor_1 = as.numeric(rating_favor_1)) %>%
+  mutate(rating.law = rowMeans(cbind( rating_positive_1, rating_favor_1) ))
+survey_t2 <- survey_t2 %>%
+  mutate (rating_positive_1 = as.numeric(rating_positive_1),
+          rating_favor_1 = as.numeric(rating_favor_1)) %>%
+  mutate(rating.law = rowMeans(cbind( rating_positive_1, rating_favor_1) ))
+survey_t2_controlGroup <- survey_t2_controlGroup %>%
+  mutate (rating_positive_1 = as.numeric(rating_positive_1),
+          rating_favor_1 = as.numeric(rating_favor_1)) %>%
+  mutate(rating.law = rowMeans(cbind( rating_positive_1, rating_favor_1) ))
+
+### climate change concern (only in wave2)
+# transform each item factor with labels
+# then into numeric and compute a mean climate change concern value
+survey_t2 <- survey_t2 %>%
+  mutate_at(vars(starts_with("cc_concern")), list(fac = function(x){ factor(x, levels=c("stimme überhaupt nicht zu", "stimme nicht zu", "stimme eher nicht zu", 
+                                                                                     "stimme eher zu", "stimme zu", "stimme voll und ganz zu"),
+         labels = c(1, 2, 3, 4, 5, 6))  })) %>%
+  mutate(across(ends_with("_fac"), as.numeric) )%>%
+  mutate(climate_concern = rowMeans(cbind( cc_concerns_1_fac, cc_concerns_2_fac, cc_concerns_3_fac, cc_concerns_4_fac))) %>%
+  select(!ends_with("_fac"))
+  
+survey_t2_controlGroup <- survey_t2_controlGroup %>%
+  mutate_at(vars(starts_with("cc_concern")), list(fac = function(x){ factor(x, levels=c("stimme überhaupt nicht zu", "stimme nicht zu", "stimme eher nicht zu", 
+                                                                                     "stimme eher zu", "stimme zu", "stimme voll und ganz zu"),
+         labels = c(1, 2, 3, 4, 5, 6))  })) %>%
+  mutate(across(ends_with("_fac"), as.numeric) )%>%
+  mutate(climate_concern = rowMeans(cbind( cc_concerns_1_fac, cc_concerns_2_fac, cc_concerns_3_fac, cc_concerns_4_fac))) %>%
+  select(!ends_with("_fac"))
+  
+### media engagement (only in wave2)
+# transform each item factor with labels
+survey_t2 <- survey_t2 %>%
+  mutate_at(vars(starts_with("engagement")), function(x){ factor(x, levels=c("Gar nicht", "Für circa 1-2 Stunden im letzten Monat", "Für circa 2-3 Stunden im letzten Monat", 
+                                                                                        "Für circa 3-4 Stunden im letzten Monat", "Für circa 4-5 Stunden im letzten Monat", "Für circa 5-6 Stunden im letzten Monat",
+                                                                                        "Für circa 6-7 Stunden im letzten Monat", "Für mehr als 7 Stunden im letzten Monat"),
+                                                                          labels=c("Gar nicht", "Für circa 1-2 Stunden", "Für circa 2-3 Stunden", "Für circa 3-4 Stunden", "Für circa 4-5 Stunden", "Für circa 5-6 Stunden", "Für circa 6-7 Stunden", "Für mehr als 7 Stunden"))  })
+survey_t2_controlGroup <- survey_t2_controlGroup %>%
+  mutate_at(vars(starts_with("engagement")), function(x){ factor(x, levels=c("Gar nicht", "Für circa 1-2 Stunden im letzten Monat", "Für circa 2-3 Stunden im letzten Monat", 
+                                                                                        "Für circa 3-4 Stunden im letzten Monat", "Für circa 4-5 Stunden im letzten Monat", "Für circa 5-6 Stunden im letzten Monat",
+                                                                                        "Für circa 6-7 Stunden im letzten Monat", "Für mehr als 7 Stunden im letzten Monat"),
+                                                                          labels=c("Gar nicht", "Für circa 1-2 Stunden", "Für circa 2-3 Stunden", "Für circa 3-4 Stunden", "Für circa 4-5 Stunden", "Für circa 5-6 Stunden", "Für circa 6-7 Stunden", "Für mehr als 7 Stunden"))  })
+
+# then into numeric and compute a mean climate change concern value
+survey_t2 <- survey_t2 %>%
+  mutate_at(vars(starts_with("engagement")), list(fac = function(x){ factor(x, levels=c("Gar nicht", "Für circa 1-2 Stunden", "Für circa 2-3 Stunden", "Für circa 3-4 Stunden", "Für circa 4-5 Stunden", 
+                                                                            "Für circa 5-6 Stunden", "Für circa 6-7 Stunden", "Für mehr als 7 Stunden"),
+         labels = c(0, 1, 2, 3, 4, 5, 6, 7))  })) %>% 
+  mutate(across(ends_with("_fac"), as.numeric) ) %>%
+  mutate(media_engagement = rowMeans(cbind( engagement_1_fac, engagement_2_fac, engagement_3_fac, engagement_4_fac,engagement_5_fac))) %>%
+  select(!ends_with("_fac"))
+survey_t2_controlGroup <- survey_t2_controlGroup %>%
+  mutate_at(vars(starts_with("engagement")), list(fac = function(x){ factor(x, levels=c("Gar nicht", "Für circa 1-2 Stunden", "Für circa 2-3 Stunden", "Für circa 3-4 Stunden", "Für circa 4-5 Stunden", 
+                                                                            "Für circa 5-6 Stunden", "Für circa 6-7 Stunden", "Für mehr als 7 Stunden"),
+         labels = c(0, 1, 2, 3, 4, 5, 6, 7))  })) %>% 
+  mutate(across(ends_with("_fac"), as.numeric) ) %>%
+  mutate(media_engagement = rowMeans(cbind( engagement_1_fac, engagement_2_fac, engagement_3_fac, engagement_4_fac,engagement_5_fac))) %>%
+  select(!ends_with("_fac"))
+
+############ remove unnecessary automatically generated qualtrics variables (e.g.recipientLastNames)
+survey_t1 <- survey_t1[, -c(2,3, 6:18, 24, 27:43)]
+survey_t1 <- survey_t1 %>% 
+  rename(Status = Status.x,
+         IPAddress = IPAddress.x) %>%
+  select(!u.y)
+
+survey_t2 <- survey_t2[, -c(2:18, 21,22,23, 26:38)]
+survey_t2 <- survey_t2 %>% 
+  rename(Status = Status.y,
+         IPAddress = IPAddress.y) %>%
+  select(!u.y)
+
+survey_t2_controlGroup <- survey_t2_controlGroup[, -c(2,3, 6:18, 24, 27:43)]
+survey_t2_controlGroup <- survey_t2_controlGroup %>% 
+  rename(Status = Status.x,
+         IPAddress = IPAddress.x) %>%
+  select(!u.y)
+
+################
+# merge data sets
+################
+
+survey_t1_merge <- merge(survey_t1, df_IDs, by.x="participantID", by.y="participantID.wave1")
+survey_t2_merge <- merge(survey_t2, df_IDs, by.x="participantID", by.y="participantID.wave2")
+survey_experimentalGroup <- merge(x = survey_t1_merge, y = survey_t2_merge,  by.x="participantID", by.y="participantID.wave1")
+
+
+############ remove participants with multiple IPs / Spam status?
+# XYZ!!!
+survey_removeIds <- survey_experimentalGroup %>% select(participantID,participantID.wave2, IPAddress.x, IPAddress.y, Status.x, Status.y, time.x, time.y, age, gender, education)
+# IPAdresses: 179.43.146.25, 179.43.145.229
+# combinations of IPAdresse that occur more than twice
+
+survey_multipleIpadress <- survey_experimentalGroup %>% select(participantID, IPAddress.x, IPAddress.y) %>% group_by(IPAddress.x, IPAddress.y) %>% tally()
+survey_multipleIpadress.2 <-   survey_experimentalGroup %>% select(participantID, IPAddress.x, IPAddress.y) %>% pivot_longer(2:3, names_to = "wave", values_to = "IPAddress")
+survey_multipleIpadress.2 <- survey_multipleIpadress.2  %>% group_by(IPAddress) %>% tally()
+
+# 2762b7046f18205fd11a33278ab028e2
+#51faf2bb8ee417744f1fc613706c9ef8
+
+survey_t1_CAM <- left_join(x = survey_t1, y = CAMindicators_t1, by = c("participantID" = "participantCAM"))
+survey_t2_CAM <- left_join(x = survey_t2, y = CAMindicators_t2, by = c("participantID" = "participantCAM"))
+```
+
+
+
+## Analysis step
+
+### descriptive statistics
+
+
+
+#### data cleaning - reduced sample size
+
+
+
+*for surveys:*
+
+
+
+
+*for CAMs:*
+
+```{r sampleSize_CAM, include=TRUE}
+################
+# sample sizes for CAMs
+################
+# saved CAMs on JATOS
+length(dfCAM_t1)
+# drawn CAMs (only CAMs, which contain at least 1 connector)
+length(CAMdrawn_t1)
+# fake CAMs (drawn no words)
+length(CAMdrawn_t1_fake$ID_fakeCAMs)
+#> percentage of fake CAMs:
+round(x = length(CAMdrawn_t1_fake$ID_fakeCAMs) / length(CAMdrawn_t1) * 100, digits = 2)
+
+
+# saved CAMs on JATOS
+length(dfCAM_t2)
+# drawn CAMs (only CAMs, which contain at least 1 connector)
+length(CAMdrawn_t2)
+# fake CAMs (drawn no words)
+length(CAMdrawn_t2_fake$ID_fakeCAMs)
+#> percentage of fake CAMs:
+round(x = length(CAMdrawn_t2_fake$ID_fakeCAMs) / length(CAMdrawn_t2) * 100, digits = 2)
+
+
+# saved CAMs on JATOS
+length(dfCAM_t2_controlGroup)
+# drawn CAMs (only CAMs, which contain at least 1 connector)
+length(CAMdrawn_t2_controlGroup)
+# fake CAMs (drawn no words)
+length(CAMdrawn_t2_controlGroup_fake$ID_fakeCAMs)
+#> percentage of fake CAMs:
+round(x = length(CAMdrawn_t2_controlGroup_fake$ID_fakeCAMs) / length(CAMdrawn_t2_controlGroup) * 100, digits = 2)
+```
+
+
+
+
+### inferential statistics
+
+All the analysis in this section are seperated for the single hypotheses.
+
+#### Hypothesis 1
+
+H1:
+We expect to find differences in emotional properties of mental models of [those intending to vote yes versus no on the upcoming climate protection law].
+More specifically, we assume that valence of yes-intention voters will be more positive and valence of no-intention voters will be more negative.
+
+
+see: https://indrajeetpatil.github.io/ggstatsplot/reference/ggbetweenstats.html
+
+```{r}
+ggstatsplot::ggbetweenstats(
+  survey_t1_CAM,
+  x    = intended.vote,
+  y    = mean_valence_macro,
+  type = "parametric",
+  xlab = "intended vote",
+  ylab = "average valence"
+)
+```
+
+
+
+
+### exploratory analysis 
+
+blub
+
+# Mixed
+
+blub
+
+# References

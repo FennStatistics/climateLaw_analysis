@@ -1,0 +1,14 @@
+"0","survey_experimentalGroup_CAM.long2 <- survey_experimentalGroup_CAM.long[, -c(1, 3, 6,8,10:16,35)] %>%"
+"0","  select(!c(media_engagement_rel, climate_concern_rel, partyIdentification_text,representative_t2)) %>% "
+"0","  rename(technical_problem =technical_problem_t2,"
+"0","         technical_problem_2_TEXT=technical_problem_2_TEXT_t2,"
+"0","         CAM_ID = CAM_ID_t2         )"
+"0","survey_t2_controlGroup_CAM$wave <- rep(""wave2_control"",nrow(survey_t2_controlGroup_CAM))"
+"0","  "
+"0","survey_t2_controlGroup_CAM <- survey_t2_controlGroup_CAM %>% relocate ( climate_concern,media_engagement, wave, intendedVote,ratingPositive, ratingFavor, ratingLaw, .before = mean_valence_macro) %>%"
+"0","  select(!c(attention.check,partyIdentification_text, time,check_IP.y,check_SPAM.y))"
+"0",""
+"0","survey_CAM <- rbind(survey_experimentalGroup_CAM.long2,survey_t2_controlGroup_CAM)"
+"2","Error in rbind(deparse.level, ...) : 
+  numbers of columns of arguments do not match
+"

@@ -1,0 +1,26 @@
+{
+    "id": "8A1AEFB1",
+    "path": "~/Downloads/Analysis_01/output/checkFakeCAMs/check-CAMdrawn_t1_fake.Rmd",
+    "project_path": null,
+    "type": "r_markdown",
+    "hash": "3769292811",
+    "contents": "",
+    "dirty": false,
+    "created": 1693475495037.0,
+    "source_on_save": false,
+    "relative_order": 8,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "42,0",
+        "scrollLine": "0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1688452554,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1688452554,
+    "read_only": false,
+    "read_only_alternatives": []
+}

@@ -1,0 +1,42 @@
+---
+title: "check fake CAMS of CAMdrawn_t1_fake"
+author: "Nina Frings & Julius Fenn"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+  word_document:
+    toc: yes
+    toc_depth: '3'
+---
+
+
+```{r loadPackagesData, include=TRUE}
+################
+# load packages
+################
+library(igraph)
+
+################
+# load data
+################
+CAMdrawn_t1 <- readRDS(file = "CAMdrawn_t1.rds")
+CAMdrawn_t1_fake <- readRDS(file = "CAMdrawn_t1_fake.rds")
+```
+
+```{r plotCAMs, include=TRUE}
+################
+# plot automatically identified fake CAMs
+################
+for(i in 1:length(CAMdrawn_t1_fake$ID_fakeCAMs)){
+  print(CAMdrawn_t1_fake$ID_fakeCAMs[i])
+  plot(CAMdrawn_t1[[CAMdrawn_t1_fake$ID_fakeCAMs[i]]], edge.arrow.size = .5,
+     layout=layout_nicely, vertex.frame.color="black", asp = .5, margin = -0.1,
+     vertex.size = 5, vertex.label.cex = .9)
+}
+```

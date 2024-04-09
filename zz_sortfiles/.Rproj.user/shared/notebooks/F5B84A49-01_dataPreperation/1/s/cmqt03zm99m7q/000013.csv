@@ -1,0 +1,7 @@
+"0","## if ""character(0)"" no more multiple IDs"
+"0","multiIDs <- names(table(survey_p1_t1$participantID))[table(survey_p1_t1$participantID) >= 2]"
+"0",""
+"0","if(!identical(multiIDs, character(0))){"
+"0","  length(multiIDs)"
+"0","  survey_p1_t1[survey_p1_t1$participantID == multiIDs[1],]"
+"0","}"

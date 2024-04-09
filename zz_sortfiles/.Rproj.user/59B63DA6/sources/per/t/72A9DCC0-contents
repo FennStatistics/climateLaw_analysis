@@ -1,0 +1,1225 @@
+---
+title: "Data Analysis Climate Law Study"
+author: "Nina Frings & Julius Fenn"
+date: "`r Sys.Date()`"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+  html_document:
+    toc: yes
+    toc_depth: 4
+    number_sections: no
+  word_document:
+    toc: yes
+    toc_depth: '3'
+bibliography: Library_subset.bib
+biblio-style: apalike
+link-citations: yes
+---
+
+```{css, echo=FALSE}
+.CSSoutput {
+  background-color: white;
+  border: 1px solid black;
+}
+```
+```{r setup chunks, include=FALSE}
+knitr::opts_chunk$set(class.source = "CSSoutput",
+                      eval = TRUE, echo = FALSE, include = TRUE,      
+                      fig.align='center', fig.show='asis',
+                      size='footnotesize')
+
+```
+
+
+```{r packages, include=FALSE}
+# reset R environment
+# rm(list=ls(all=TRUE)) # ! not needed in rmarkdown, but good practice
+# graphics.off() # ! not needed in rmarkdown
+
+################
+# install and load packages
+################
+#  if packages are not already installed, the function will install and activate them
+usePackage <- function(p) {
+  if (!is.element(p, installed.packages()[,1]))
+    install.packages(p, dep = TRUE, repos = "http://cran.us.r-project.org")
+  require(p, character.only = TRUE)
+}
+
+usePackage("tidyverse") # data cleaning and summarizing
+usePackage("jsonlite") # load SPSS, ... data 
+
+## psychometric analysis
+usePackage("moments") # skewness, kurtosis
+usePackage("psych")
+
+## hypothesis tests
+usePackage("ggstatsplot")
+usePackage("sjPlot")
+usePackage("lmer")
+usePackage("lmerTest")
+usePackage("lme4")
+usePackage("sjlabelled")
+usePackage("sjmisc")
+usePackage("emmeans")
+usePackage("rcompanion")
+usePackage("rstatix")
+usePackage("specr")
+usePackage("corrplot")
+usePackage("patchwork")
+
+## CAM
+usePackage("igraph") # load SPSS, ... data 
+
+
+
+## outputs
+usePackage("stargazer") # create tables
+usePackage("DT") # create dynamic tables
+## wordlists
+usePackage("tm")
+
+rm(usePackage)
+```
+
+
+
+## Analysis 
+
+### Descriptive statistics sample
+
+```{r, include=FALSE}
+
+#wave 1
+survey_t1_complete <- read_csv(file="output/survey_t1_CAM.csv")
+survey_t1_CAM <- readRDS(file="output/survey_t1_CAM_d.rds")
+
+
+# wave 2
+survey_t2_CAM <- readRDS(file="output/survey_t2_CAM_d.rds")
+
+# control group
+survey_controlGroup <- read_csv(file="output/survey_t2_controlGroup_CAM.csv")
+
+# all 3
+survey_CAM <- readRDS(file="output/survey_CAM.rds")
+
+```
+
+```{r Antony, include=FALSE}
+# infos for Antony
+
+#wave 1
+survey_t1<- read.csv("output/survey_t1_CAM.csv")
+
+survey_t1.A <- survey_t1 %>% select(participantID, intendedVote, ratingLaw, mean_valence_macro_t1) %>% rename (mean_valence_macro =mean_valence_macro_t1)
+survey_t1.A$wave <- rep("t1", (nrow(survey_t1.A)))
+# intendedVote: 0= no, 1=yes
+#ratingLaw (mean of 2 items: positive-negative and in favor-against from 1-8
+
+# wave 2
+survey_t2<- read.csv("output/survey_t2_CAM.csv")
+survey_t2.A <- survey_t2 %>% select(participantID, intendedVote, ratingLaw, mean_valence_macro_t2) %>% rename (mean_valence_macro =mean_valence_macro_t2)
+survey_t2.A$wave <- rep("t2", (nrow(survey_t2.A)))
+# control group
+survey_cG <- read.csv("output/survey_t2_controlGroup_CAM.csv")
+survey_cG.A <- survey_cG %>% select(participantID, intendedVote, ratingLaw, mean_valence_macro)
+survey_cG.A$wave <- rep("t2_controlGroup", (nrow(survey_cG.A)))
+
+all.surveys <-  do.call("rbind",(list(survey_t1.A, survey_t2.A,survey_cG.A )))
+write.csv(all.surveys, "all.surveys.csv")
+```
+
+
+**Participants in first wave: `r nrow(survey_t1_complete)`**        
+**Participants that completed both wavves: `r nrow(survey_t2_CAM)`**        
+**Additional "control group" partcipants: `r nrow(survey_controlGroup)`**       
+
+    
+**percentage of overall sample that completed wave 1 and wave 2**
+```{r}
+survey_t2_CAM$age.cat <- cut(survey_t2_CAM$age, breaks=c(17, 29, 39, 49, 59, 81) )
+survey_t2_CAM$age.cat <- factor(survey_t2_CAM$age.cat, labels=c("18-29", "30-39", "40-49", "50-59", "60-80"))
+survey_t2_CAM <- survey_t2_CAM %>% filter(gender=="männlich" | gender=="weiblich")
+tab_dem <- round(prop.table(table(survey_t2_CAM$age.cat, survey_t2_CAM$gender)),2)*100
+knitr::kable(tab_dem, align = "l")
+
+```
+
+
+**Political party identification**
+```{r, fig.heigt=7, fig.width=9}
+survey_CAM$partyIdentification <- factor(survey_CAM$partyIdentification,
+                                                           levels=c("Grüne", "SP", "GLP", "Die Mitte", "FDP","SVP", "andere Partei", "Keine") )
+
+survey_CAM_party <- survey_CAM  %>% select(partyIdentification) %>% group_by(partyIdentification) %>% tally()
+survey_CAM_party$perc <- round(survey_CAM_party$n/nrow(survey_CAM),2) *100
+
+ggplot(survey_CAM_party, aes(x=partyIdentification, y=perc, fill=partyIdentification)) +
+  theme_minimal() + 
+  theme(legend.position='none') +
+  geom_bar(stat="identity") +
+  labs(y="percentage of total sample", fill=NULL) + 
+  scale_fill_manual(values= c("#84B414", "#FF0000", "#000000", "#FF9B00", "#074EA1",  "#72BE44", "grey", "grey" )) 
+
+```
+
+
+#### Media, climate change concern
+
+
+#### Climate change concern 
+
+Cronbachs's alpha of 0.95, skew of -0.99        
+
+```{r}
+survey_t2_CAM <- survey_t2_CAM %>%
+  mutate_at(vars(starts_with("cc_concern")), list(num = function(x){ factor(x, levels=c("stimme überhaupt nicht zu", "stimme nicht zu", "stimme eher nicht zu", 
+                                                                                     "stimme eher zu", "stimme zu", "stimme voll und ganz zu"),
+         labels = c(1, 2, 3, 4, 5, 6))  })) %>%
+  mutate(across(ends_with("_num"), as.numeric) )%>%
+  mutate(climate_concern = rowMeans(cbind( cc_concerns_1_num, cc_concerns_2_num, cc_concerns_3_num, cc_concerns_4_num)))
+  
+#psych::alpha(survey_t2_CAM[c("cc_concerns_1_num","cc_concerns_2_num","cc_concerns_3_num","cc_concerns_4_num")])
+
+# visualize distribution climate change concern
+ggplot(survey_CAM, aes(x=climate_concern )) +
+  geom_histogram(bins=20, color="black", fill="black") +
+  theme_minimal()  +
+  theme(axis.title  = element_text(size = 14), 
+        axis.text.y = element_text(size = 14),
+        axis.text.x = element_text(size=14)) +
+        labs(x=NULL, fill="climate concern", y="count")
+```
+
+```{r, include=FALSE}
+
+climate_concern_party.vis <- survey_CAM %>% select(partyIdentification, climate_concern) %>% group_by_all() %>% tally()
+climate_concern_party.vis <-climate_concern_party.vis  %>% filter(!partyIdentification=="Keine") %>% filter(!partyIdentification=="andere Partei")
+climate_concern_party.vis$partyIdentification <- factor(climate_concern_party.vis$partyIdentification,
+                                                           levels=c("Grüne", "SP", "GLP", "Die Mitte", "FDP","SVP") )
+
+```
+By party
+```{r}
+ggplot(climate_concern_party.vis, aes(x=climate_concern, y=n, fill=partyIdentification )) +
+    geom_bar(stat="identity", position="dodge") +
+    facet_wrap(partyIdentification~.) +
+    scale_fill_manual(values=c("#84B414", "#FF0000", "#000000", "#FF9B00", "#074EA1",  "#72BE44" ))+
+    
+    theme_minimal()  +
+    theme(axis.title  = element_text(size = 14), 
+          axis.text.y = element_text(size = 14),
+          strip.text = element_text(size = 14),
+          axis.text.x = element_text(size=14)) +
+    labs(x=NULL, fill="climate concern", y="count")
+```
+
+#### Media engagement
+
+The items were phrased as: How did you inform yourself about the climate law and the vote **in the past month**       
+    
+Cronbachs alpha of 0.89       
+    
+    
+```{r, include=FALSE}
+survey_t2_CAM <- survey_t2_CAM %>%
+  mutate_at(vars(starts_with("engagement")), function(x){ factor(x, levels=c("not at all", "for approx. 1-2 hours", "for approx. 2-3 hours", "for approx. 3-4 hours", "for approx. 4-5 hours", "for approx. 5-6 hours", "for approx. 6-7 hours", "for more than 7 hours"))  })
+survey_t2_CAM <- survey_t2_CAM %>%
+  mutate_at(vars(starts_with("engagement")), list(num = function(x){ factor(x, 
+                                                                            levels=c("not at all", "for approx. 1-2 hours", "for approx. 2-3 hours", 
+                                                                                     "for approx. 3-4 hours","for approx. 4-5 hours", "for approx. 5-6 hours", 
+                                                                                     "for approx. 6-7 hours", "for more than 7 hours"),
+                                                                            labels = c(0, 1, 2, 3, 4, 5, 6, 7))  })) %>% 
+  mutate(across(ends_with("num"), as.numeric) ) %>%
+  mutate(media_engagement = rowMeans(cbind( engagement_1_num, engagement_2_num, engagement_3_num, engagement_4_num,engagement_5_num))) 
+
+#psych::alpha(survey_t2_CAM[c("engagement_1_num","engagement_2_num","engagement_3_num","engagement_4_num","engagement_5_num")])
+
+```
+
+```{r, include=FALSE}
+## media engagamement type and hours
+media.engagement <- survey_CAM %>% select(participantID, starts_with("engagement"), media, media1_text, climate_concern, partyIdentification, intendedVote, ratingLaw)
+media.engagement.long <- pivot_longer(media.engagement, cols = 2:6, names_to = "media.engagament.type", values_to = "hours.per.month")
+ 
+media.engagement.long$media.engagament.type <- factor(media.engagement.long$media.engagament.type, 
+                                                 levels=c("engagement_1", "engagement_2", "engagement_3", "engagement_4", "engagement_5" ),
+                                                 labels=c("discussed_or_talked", "TV_or_radio", "flyers_posters", "newspapers_online.print", "social.media"))
+media.engagement.long$hours.per.month <- factor(media.engagement.long$hours.per.month, 
+                                                   levels=c("not at all", "for approx. 1-2 hours", "for approx. 2-3 hours", "for approx. 3-4 hours",
+                                                                                   "for approx. 4-5 hours", "for approx. 5-6 hours", "for approx. 6-7 hours", "for more than 7 hours"))  
+# visualize topic/ media engagement
+
+media.engagement.vis <- media.engagement.long %>% select(media.engagament.type, hours.per.month) %>% 
+  group_by(media.engagament.type, hours.per.month) %>% tally()
+
+media.engagement.party.vis <- media.engagement.long %>% select(media.engagament.type, hours.per.month, partyIdentification) %>% 
+    group_by(media.engagament.type, hours.per.month, partyIdentification) %>% tally()
+
+ media.engagement.party.vis <- media.engagement.party.vis %>% filter(!partyIdentification=="Keine") %>% filter(!partyIdentification=="andere Partei")
+media.engagement.party.vis$partyIdentification <- factor(media.engagement.party.vis$partyIdentification,
+                                                           levels=c("Grüne", "SP", "GLP", "Die Mitte", "FDP","SVP"),
+                                                          labels=c("Grüne", "SP", "GLP", "Die Mitte", "FDP","SVP"))
+
+```
+Type of media used as information source        
+
+```{r, fig.height=7, fig.width=8}
+ggplot(media.engagement.vis, aes(x=media.engagament.type, y=n, fill=hours.per.month)) +
+    geom_bar(stat="identity", position="dodge") + 
+    scale_fill_brewer(palette = "Blues") +
+    theme_minimal() +
+    theme(axis.title  = element_text(size = 14), 
+          axis.text.y = element_text(size = 14),
+          axis.text.x = element_text(size=14, angle=45, hjust=1),
+          strip.text = element_text(size=14)) +
+    labs(x=NULL,  y="count", fill="hours per month")
+
+```
+
+```{r, include=FALSE, fig.heigt=11, fig.width=10}
+# magenta FDP  #E8308A
+# rot von SVp  "#ED1C24
+#c("#84B414", "#FF0000", "#000000", "#FF9B00", "#074EA1",  "#72BE44" ))
+ggplot(media.engagement.party.vis, aes(x=media.engagament.type, y=n, fill=hours.per.month)) +
+    geom_bar(stat="identity", position="dodge") + 
+  facet_wrap(partyIdentification~.) +
+    scale_fill_brewer(palette = "Blues") +
+    theme_minimal() +
+    theme(axis.title  = element_text(size = 14), 
+          axis.text.y = element_text(size = 14),
+          axis.text.x = element_text(size=14, angle=90, hjust=1),
+          strip.text = element_text(size=14)) +
+    labs(x=NULL, fill="hours per month", y="count")
+```
+
+
+#### News media
+```{r, include=FALSE}
+
+## this does not yet include open text mentions!!
+
+media.engagement.news <- media.engagement %>% select(!engagement_1 ) %>% select(! engagement_2) %>% select(!engagement_3) %>% select(!engagement_5) %>%
+  mutate(NZZ = 0) %>%
+  mutate(zwanzig.Minuten = 0) %>%
+  mutate (SRF = 0) %>%
+  mutate (Blick = 0) %>%
+  mutate (StGaller.Tagblatt = 0) %>%
+  mutate (Weltwoche = 0) %>%
+  mutate (Luzerner.Zeitung = 0) %>%
+  mutate (Berner.Zeitung.BZ = 0) %>%
+  mutate (Basler.Zeitung = 0) %>%
+  mutate (Nordwestschweiz = 0) %>%
+  mutate (Tages.Anzeiger = 0) %>%
+#  mutate(watson = 0) %>%
+  relocate (NZZ,zwanzig.Minuten, Blick, StGaller.Tagblatt, SRF, Weltwoche, Luzerner.Zeitung,
+            Berner.Zeitung.BZ, Basler.Zeitung, Nordwestschweiz,Tages.Anzeiger, .after=media)
+  
+media.engagement.news$NZZ[grepl("NZZ", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$zwanzig.Minuten[grepl("20 Minuten", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$SRF[grepl("SRF", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Blick[grepl("Blick", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$StGaller.Tagblatt[grepl("St.Galler Tagblatt", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Weltwoche[grepl("Weltwoche", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Luzerner.Zeitung[grepl("Luzerner Zeitung", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Berner.Zeitung.BZ[grepl("Bund", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Basler.Zeitung[grepl("Basler", media.engagement.news$media ) == TRUE] <- 1
+media.engagement.news$Nordwestschweiz[grepl("Nordwestschweiz", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Tages.Anzeiger[grepl("Tages-Anzeiger", media.engagement.news$media) == TRUE] <- 1
+#media.engagement.news$watson[grepl("watson", media.engagement.news$media_6_TEXT) == TRUE] <- 1
+
+media.engagement.news.long <- pivot_longer(media.engagement.news, cols=4:14, names_to = "newspaper", values_to = "read" )
+media.engagement.news.long <- media.engagement.news.long %>% filter(read==1)
+
+media.engagement.news.long.vis.rating <- media.engagement.news.long %>% select(newspaper, ratingLaw) %>%
+  group_by(newspaper, ratingLaw) %>% tally()
+
+media.engagement.news.long.vis.rating$ratingLaw.f <- factor(media.engagement.news.long.vis.rating$ratingLaw)
+
+
+media.engagement.party.long <- media.engagement.news.long %>% select(newspaper, ratingLaw, partyIdentification) %>%
+  group_by(newspaper, ratingLaw,partyIdentification) %>% tally()
+
+media.engagement.party.long$ratingLaw.f <- factor(media.engagement.party.long$ratingLaw)
+media.engagement.party.long <- media.engagement.party.long %>% filter(!partyIdentification=="Keine") %>% filter(!partyIdentification=="andere Partei")
+media.engagement.party.long$partyIdentification <- factor(media.engagement.party.long$partyIdentification,
+                                                           levels=c("Grüne", "SP", "GLP", "Die Mitte", "FDP","SVP"))
+
+
+
+```
+
+
+Newspapers used as source of information
+```{r, fig.heigt=7, fig.width=8}
+# newspaper and rating law
+
+ggplot(media.engagement.news.long.vis.rating, aes(x=reorder(newspaper,n), y=n, fill=ratingLaw)) +
+    scale_fill_gradient2(low="#a50000", mid = "#F6BE00", high="#004020", midpoint=4) +
+    geom_bar(stat="identity") +  
+    theme_minimal() + coord_flip() +
+    theme(axis.title  = element_text(size = 14), 
+          axis.text = element_text(size = 14),
+          strip.text = element_text(size=14)) +
+    labs(x=NULL, fill="rating law", y="count")
+```
+
+```{r, fig.heigt=7, fig.width=9}
+ggplot(media.engagement.party.long, aes(x=reorder(newspaper,n), y=n, fill=ratingLaw)) +
+    scale_fill_gradient2(low="#a50000", mid = "#F6BE00", high="#004020", midpoint=4) +
+  facet_wrap(partyIdentification ~.) +
+    geom_bar(stat="identity") + 
+    theme_minimal() + coord_flip() +
+    theme(axis.title  = element_text(size = 14), 
+          axis.text = element_text(size = 14),
+          strip.text = element_text(size=14)) +
+    labs(x=NULL, fill="rating law", y="count")
+```
+
+### Correlations between predictor variables cc concern, rating of law and political orientation:       
+
+```{r}
+data.predictors <- survey_t1_CAM %>% select( ratingLaw, climate_concern, politicalOrientation, mean_valence_macro_t1)
+
+data.predictors.matrix <- cor(data.predictors)
+corrplot(data.predictors.matrix, method="number", tl.col = "black")
+```
+
+
+
+### CAM Indicators
+
+```{r, warning=FALSE, fig.heigt=7, fig.width=9}
+
+violin_density <- ggplot(survey_CAM, aes(x=wave, y=density_macro) ) + 
+  geom_violin() + labs(x="wave",y="density", title=NULL) +
+  theme_minimal()  + theme(axis.text.x=element_text(size=14))
+
+violin_concepts <- ggplot(survey_CAM, aes(x=wave, y=num_nodes_macro) ) + 
+  geom_violin() + labs(x="wave", y="number of concepts", title=NULL) +
+  theme_minimal()  + theme(axis.text.x=element_text(size=14))
+
+violin_density + violin_concepts
+
+violin_valence <- ggplot(survey_CAM, aes(x=wave, y=mean_valence_macro) ) + 
+  geom_violin() + labs(x="wave", y="valence macro", title=NULL) +
+  theme_minimal()  + theme(axis.text.x=element_text(size=14))
+
+violin_valence2 <- ggplot(survey_CAM, aes(x=intendedVote, y=mean_valence_macro, color=intendedVote) ) + 
+  geom_violin() + labs(x="intended vote", y="valence macro", title=NULL) + scale_color_manual(values=c( "darkred", "darkgreen") ) +
+  theme_minimal() + theme(axis.text.x=element_text(size=14))
+
+survey_CAM$partyIdentification <- factor(survey_CAM$partyIdentification,
+                                                           levels=c("Grüne", "SP", "GLP", "Die Mitte", "FDP","SVP", "Keine", "andere Partei") )
+
+violin_valence3 <- ggplot(survey_CAM, aes(x=partyIdentification, y=mean_valence_macro, color=partyIdentification) ) + 
+  theme_minimal() + 
+  geom_violin() + labs(x="party identification", y="valence macro", title=NULL) + theme(legend.position = "none") +
+  scale_color_manual(values=c("#84B414", "#FF0000", "#000000", "#FF9B00", "#074EA1",  "#72BE44", "grey", "grey" )) +
+  theme(axis.text.x=element_text(size=14))
+
+
+(violin_valence | violin_valence2) / violin_valence3
+
+```
+
+
+Did people change the valence of "Klimagesetz"?       
+
+```{r}
+tab <-table(survey_CAM$valence_micro_Klimagesetz, survey_CAM$wave)
+knitr::kable(tab)
+
+```
+
+
+```{r, warning=FALSE, include=FALSE, comment=FALSE}
+
+getDescriptives <- function(dataset = survey_t1_CAM, regEx,
+                            sorted = TRUE,
+                            nameAPAtable = NULL){
+  x <- survey_t1_CAM[, str_detect(string = colnames(survey_t1_CAM),
+                            pattern = regEx)] 
+  ## table
+  tmp_descriptives <- sapply(x, function(x) c(
+    "Mean"= mean(x,na.rm=TRUE),
+    "SD" = sd(x,na.rm=TRUE),
+    "Median" = median(x,na.rm=TRUE),
+    "CoeffofVariation" = sd(x,na.rm=TRUE)/mean(x,na.rm=TRUE),
+    "Minimum" = min(x,na.rm=TRUE),
+    "Maximun" = max(x,na.rm=TRUE),
+    "Lower Quantile" = as.numeric(quantile(x,0,na.rm=TRUE)),
+    "Upper Quantile" = as.numeric(quantile(x,1,na.rm=TRUE)),
+    "Skewness" = moments::skewness(x = x,na.rm=TRUE),
+    "Kurtosis(-3)" = moments::kurtosis(x = x,na.rm=TRUE) -3,
+    "KS-Test" = ks.test(x = x, y = "pnorm", mean(x,na.rm=TRUE), sd(x,na.rm=TRUE))$p.value
+  )
+  )
+  tmp_descriptives <- round(x = tmp_descriptives, digits = 2)
+  # print(t(tmp_descriptives))
+  
+  ## ggplot
+  tmp_long <- x %>%
+    gather(key="variables", value="value") %>%
+    mutate(variables = gsub("\\.", " ",variables)) %>%
+    mutate(value = round(as.numeric(value),2))
+  
+  if(sorted){
+    p <- tmp_long %>%
+      mutate(variables = fct_reorder(variables, value)) %>%
+      ggplot( aes(x=value, color=variables, fill=variables)) +
+      geom_histogram() +
+      theme(
+        legend.position="none",
+        panel.spacing = unit(0.1, "lines"),
+        strip.text.x = element_text(size = 8)
+      ) +
+      xlab("") +
+      ylab("Frequency") +
+      facet_wrap(~variables, scales = "free")
+  }else{
+    p <- tmp_long %>%
+      ggplot( aes(x=value, color=variables, fill=variables)) +
+      geom_histogram() +
+      theme(
+        legend.position="none",
+        panel.spacing = unit(0.1, "lines"),
+        strip.text.x = element_text(size = 8)
+      ) +
+      xlab("") +
+      ylab("Frequency") +
+      facet_wrap(~variables, scales = "free")
+  }
+  print(p)
+  
+  
+  ## round digits
+  out_tmp <- round(x = t(tmp_descriptives), digits = 2)
+  
+  ## stargazer
+  if(!is.null(nameAPAtable)){notNeeded <- capture.output(stargazer(out_tmp, type = "html", summary = FALSE,out = paste0(nameAPAtable, ".html"))) }
+  
+  
+  
+  
+  return(out_tmp)
+}
+
+  
+```
+
+**Macro indicators**
+
+```{r, warning=FALSE,fig.height=8, fig.width=11}
+getDescriptives(dataset = tmp_Indicators, regEx = "_macro", sorted = FALSE, nameAPAtable = NULL)
+```
+
+
+**Micro indicators**
+```{r, warning=FALSE,fig.height=4, fig.width=11}
+getDescriptives(dataset = tmp_Indicators, regEx = "_micro", sorted = FALSE, nameAPAtable = NULL)
+```
+
+```{r, include=FALSE}
+## Difference values
+survey_experimentalGroup_CAM <- readRDS(file="output/survey_t12_CAM_new.rds")
+
+survey_experimentalGroup_CAM.diff <-survey_experimentalGroup_CAM %>%
+  select(participantID,mean_valence_macro_t1:centr_clo_micro_Klimagesetz_t1, 
+                                            mean_valence_macro_t2:centr_clo_micro_Klimagesetz_t2 )
+
+wave1_columns <- grep("_t1$", names(survey_experimentalGroup_CAM.diff), value = TRUE)
+wave2_columns <- grep("_t2$", names(survey_experimentalGroup_CAM.diff), value = TRUE)
+
+# Create new columns for the difference scores
+for (i in 1:length(wave1_columns)) {
+  wave1_col <- wave1_columns[i]
+  wave2_col <- wave2_columns[i]
+  diff_col_name <- gsub("wave1$", "diff", wave1_col)  # Create a new column name
+  
+  survey_experimentalGroup_CAM.diff[diff_col_name] <- survey_experimentalGroup_CAM.diff[[wave1_col]] - survey_experimentalGroup_CAM.diff[[wave2_col]]  # Calculate the difference
+}
+
+```
+
+##### For difference values
+```{r, include=FALSE, warning=FALSE, comment=FALSE,fig.height=7, fig.width=11}
+getDescriptives <- function(dataset = survey_experimentalGroup_CAM.diff, regEx,
+                            sorted = TRUE,
+                            nameAPAtable = NULL){
+  x <- survey_experimentalGroup_CAM.diff[, str_detect(string = colnames(survey_experimentalGroup_CAM.diff),
+                            pattern = regEx)] 
+  ## table
+  tmp_descriptives_diff <- sapply(x, function(x) c(
+    "Mean"= mean(x,na.rm=TRUE),
+    "SD" = sd(x,na.rm=TRUE),
+    "Median" = median(x,na.rm=TRUE),
+    "CoeffofVariation" = sd(x,na.rm=TRUE)/mean(x,na.rm=TRUE),
+    "Minimum" = min(x,na.rm=TRUE),
+    "Maximun" = max(x,na.rm=TRUE),
+    "Lower Quantile" = as.numeric(quantile(x,0,na.rm=TRUE)),
+    "Upper Quantile" = as.numeric(quantile(x,1,na.rm=TRUE)),
+    "Skewness" = moments::skewness(x = x,na.rm=TRUE),
+    "Kurtosis(-3)" = moments::kurtosis(x = x,na.rm=TRUE) -3,
+    "KS-Test" = ks.test(x = x, y = "pnorm", mean(x,na.rm=TRUE), sd(x,na.rm=TRUE))$p.value
+  )
+  )
+  tmp_descriptives_diff <- round(x = tmp_descriptives_diff, digits = 2)
+  # print(t(tmp_descriptives_diff))
+  
+  ## ggplot
+  tmp_long <- x %>%
+    gather(key="variables", value="value") %>%
+    mutate(variables = gsub("\\.", " ",variables)) %>%
+    mutate(value = round(as.numeric(value),2))
+  
+  if(sorted){
+    p <- tmp_long %>%
+      mutate(variables = fct_reorder(variables, value)) %>%
+      ggplot( aes(x=value, color=variables, fill=variables)) +
+      geom_histogram() +
+      theme(
+        legend.position="none",
+        panel.spacing = unit(0.1, "lines"),
+        strip.text.x = element_text(size = 8)
+      ) +
+      xlab("") +
+      ylab("Frequency") +
+      facet_wrap(~variables, scales = "free")
+  }else{
+    p <- tmp_long %>%
+      ggplot( aes(x=value, color=variables, fill=variables)) +
+      geom_histogram() +
+      theme(
+        legend.position="none",
+        panel.spacing = unit(0.1, "lines"),
+        strip.text.x = element_text(size = 8)
+      ) +
+      xlab("") +
+      ylab("Frequency") +
+      facet_wrap(~variables, scales = "free")
+  }
+  print(p)
+  
+  
+  ## round digits
+  out_tmp <- round(x = t(tmp_descriptives_diff), digits = 2)
+  
+  ## stargazer
+  if(!is.null(nameAPAtable)){
+    notNeeded <- capture.output(stargazer(out_tmp, type = "html", summary = FALSE,
+                                          out = paste0(nameAPAtable, ".html")))
+  }
+  
+  
+  
+  
+  return(out_tmp)
+}
+
+  
+```
+
+**Macro indicators**        
+
+```{r, warning=FALSE,fig.height=10, fig.width=11}
+getDescriptives(dataset = tmp_Indicators, regEx = "_macro", sorted = FALSE, nameAPAtable = NULL)
+```
+
+**Micro indicators**        
+
+```{r, warning=FALSE,fig.height=4, fig.width=11}
+getDescriptives(dataset = tmp_Indicators, regEx = "_micro", sorted = FALSE, nameAPAtable = NULL)
+```
+
+
+## inferential statistics
+
+
+
+### Hypothesis 1        
+
+##### Emotional properties        
+
+**H1**        
+
+*We expect to find differences in emotional properties of mental models of [those intending to vote yes versus no on the upcoming climate protection law].*
+*More specifically, we assume that valence of yes-intention voters will be more positive and valence of no-intention voters will be more negative.*       
+    
+    
+#### wave 1
+
+```{r}
+ggstatsplot::ggbetweenstats(
+  survey_t1_CAM,
+  x    = intendedVote,
+  y    = mean_valence_macro_t1,
+  type = "parametric",
+  xlab = "intended vote",
+  ylab = "average valence",
+  title ="wave 1 valence difference"
+
+) + 
+  theme(plot.caption = element_text(hjust = 0),
+        plot.title.position = "plot",
+        plot.caption.position =  "plot",
+        plot.title = element_text(size = 23, face = "bold"),
+        axis.title  = element_text(size = 23),
+        axis.text = element_text(size = 21),
+        legend.title = element_text(size = 19, face="plain"),
+        strip.text  = element_text(size = 19, face="plain"),
+        legend.text = element_text(size = 19))
+```
+
+*we will perform linear regressions with the indicated mental model network indicators as DV and dummy coded group differences as IV (no/yes-intention, high/low climate concern, left/right political orientation). In the case of the latter two, we may also use a continuous DV to assess correlation with network properties. We will control for socio-demographic variables (gender, age, education).*        
+
+
+With mean valence macro       
+
+```{r, include=FALSE}
+# intended vote = binary
+model_H1_t1 <- lm(mean_valence_macro_t1 ~ intendedVote + 
+                    age + gender + education ,
+                  data=survey_t1_CAM)
+# rating of law
+model_H1.1_t1 <- lm(mean_valence_macro_t1 ~ ratingLaw + 
+                    age + gender + education ,
+                  data=survey_t1_CAM)
+# politicalOrientation
+model_H1.p_t1 <- lm(mean_valence_macro_t1 ~ politicalOrientation + 
+                      age + gender + education ,
+                  data=survey_t1_CAM)
+# climate_concern
+model_H1.c_t1 <- lm(mean_valence_macro_t1 ~  climate_concern +
+                      age + gender + education ,
+                  data=survey_t1_CAM)
+# intended vote plus political orientation 
+model_H1.2_t1 <- lm(mean_valence_macro_t1 ~ politicalOrientation + intendedVote  +
+                      age + gender + education ,
+                  data=survey_t1_CAM)
+# intended vote plus political orientation and climate_concern
+model_H1.3_t1 <- lm(mean_valence_macro_t1 ~ politicalOrientation + intendedVote  + climate_concern +
+                      age + gender + education ,
+                  data=survey_t1_CAM)
+model_H1.3.1_t1 <- lm(mean_valence_macro_t1 ~ politicalOrientation + ratingLaw  + climate_concern +
+                      age + gender + education ,
+                  data=survey_t1_CAM)
+```
+
+**Intended vote**       
+
+Supported       
+
+```{r, figures-side, fig.show="hold", out.width="50%"}
+tab_model(model_H1_t1)
+tab_model(model_H1.1_t1)
+```
+
+**Climate change concern**        
+
+Supported       
+
+```{r}
+tab_model(model_H1.c_t1)
+```
+
+**Political orientation**       
+
+Supported (but when excluding climate concern and vote no longer)       
+
+```{r}
+tab_model(model_H1.p_t1)
+```
+
+**All three**
+
+```{r, out.width="50%"}
+tab_model(model_H1.3_t1)
+tab_model(model_H1.3.1_t1)
+```
+
+
+#### wave 2       
+
+No major differences to wave 1 results        
+
+
+```{r, include=FALSE}
+ggstatsplot::ggbetweenstats(
+  survey_t2_CAM,
+  x    = intendedVote,
+  y    = mean_valence_macro_t2,
+  type = "parametric",
+  xlab = "intended vote",
+  ylab = "average valence",
+  title ="wave 2 valence difference"
+)
+model_H1_t2 <- lm(mean_valence_macro_t2 ~ intendedVote + 
+                    age + gender + education ,
+                  data=survey_t2_CAM)
+model_H1.1_t2 <- lm(mean_valence_macro_t2 ~ ratingLaw + 
+                    age + gender + education ,
+                  data=survey_t2_CAM)
+# politicalOrientation
+model_H1.p_t2 <- lm(mean_valence_macro_t2 ~ politicalOrientation + 
+                      age + gender + education ,
+                  data=survey_t2_CAM)
+# climate_concern
+model_H1.c_t2 <- lm(mean_valence_macro_t2 ~  climate_concern +
+                      age + gender + education ,
+                  data=survey_t2_CAM)
+# all 3
+model_H1.3_t2 <- lm(mean_valence_macro_t2 ~ politicalOrientation + intendedVote  + climate_concern +
+                      age + gender + education ,
+                  data=survey_t2_CAM)
+```
+
+**Intended vote & rating of law**       
+
+Supported       
+
+```{r}
+
+tab_model(model_H1_t2); tab_model(model_H1.1_t2)
+
+```
+    
+        
+**Climate change concern**        
+
+```{r}
+tab_model(model_H1.c_t2)
+```
+    
+    
+**Political orientation**       
+
+```{r}
+tab_model(model_H1.p_t2)
+```
+
+
+```{r}
+#tab_model(model_H1.3_t2)
+
+```
+
+
+
+#### specification under the curve analysis emotional properties
+```{r, include=FALSE, warning=FALSE, comment=FALSE}
+
+specs_valence <- setup(data = survey_t1_CAM, 
+               y = c("mean_valence_macro_t1", "mean_valence_normed_macro_t1", "valence_micro_Klimagesetz_t1", "assortativity_valence_macro_t1"), 
+               x = c( "ratingLaw"), 
+               model = "lm", 
+               controls = c("gender", "age", "education") )
+
+hyp_1 = specr(specs_valence)
+summary(hyp_1)
+
+### standardize
+std_vars <- c("mean_valence_macro_t1", "mean_valence_normed_macro_t1", "valence_micro_Klimagesetz_t1","assortativity_valence_macro_t1",
+              "climate_concern", "age", "ratingLaw")
+survey_t1_CAM <- survey_t1_CAM %>% 
+  mutate(across(std_vars, function(x) (x - mean(x, na.rm = T)) / sd(x, T))) 
+
+specs_valence_std <- setup(data = survey_t1_CAM, 
+                                 y = c("mean_valence_macro_t1", "mean_valence_normed_macro_t1", "valence_micro_Klimagesetz_t1", "assortativity_valence_macro_t1"), 
+               x = c("ratingLaw"), 
+               model = "lm", 
+               controls = c("gender", "age", "education") )
+hyp1_std <- specr(specs_valence_std)
+```
+
+```{r, include=FALSE, warning=FALSE}
+
+
+### standardize
+
+specs_valence_std_cc <- setup(data = survey_t1_CAM, 
+                                 y = c("mean_valence_macro_t1", "mean_valence_normed_macro_t1", "valence_micro_Klimagesetz_t1", "assortativity_valence_macro_t1"), 
+               x = c("climate_concern"), 
+               model = "lm", 
+               controls = c("gender", "age", "education") )
+hyp1_std_cc <- specr(specs_valence_std_cc)
+```
+
+```{r, warning=FALSE}
+hyp_1 = specr(specs_valence)
+plot(hyp_1, choices = c("x", "y", "controls"))  
+plot(hyp_1, type="boxplot", choices = c("x", "y", "controls"))  +  scale_fill_brewer(palette = "Dark2") 
+```
+Standardized
+```{r, warning=FALSE}
+plot(hyp1_std, choices = c("x", "y", "controls"))  
+plot(hyp1_std, type="boxplot", choices = c("x", "y", "controls"))  +  scale_fill_brewer(palette = "Dark2") 
+```
+
+Standardized **climate concern **
+```{r, warning=FALSE,  comment=FALSE}
+plot(hyp1_std_cc, choices = c("x", "y", "controls"))  
+plot(hyp1_std_cc, type="boxplot", choices = c("x", "y", "controls"))  +  scale_fill_brewer(palette = "Dark2") 
+```
+
+### Hypothesis 2        
+
+##### Latent properties       
+
+*We will explore differences in latent properties of mental models of [those intending to vote yes versus no on the upcoming climate protection law]. *        
+
+```{r, echo=FALSE, include=FALSE}
+
+#	number of drawn concepts, number of ambivalent concepts, density, clustering coefficient,
+# centrality index, assortativity 
+
+# centr_clo_micro_Klimagesetz R^2 < .1, nothing significant
+# density_macro R^2 < .1, education & age significant
+# assortativityDegree_macro R^2 = negative ??, nothing significant
+# degreetot_micro_Klimagesetz R^2 = negative ??, nothing significant
+# centr_degree_macro R^2 < .1, gender significant
+# centr_clo_macro R^2 negative, nothing significant
+# centr_eigen_macro R^2 < .1, age significant
+# centr_betw_macro R^2 negative, nothing significant
+# num_nodes_macro   R^2 < .1, cc concern significant
+# num_nodes_ambi_macro # everything NaN bc either 0 or NaN
+
+#lapply(survey_t1_CAM[,22:50], sd, na.rm=TRUE)
+
+## number of nodes
+model_H2_t1_nodes_cc <- lm(num_nodes_macro_t1 ~ climate_concern  +
+                    age + gender + education ,
+                  data=survey_t1_CAM)
+model_H2_t1_nodes_law <- lm(num_nodes_macro_t1 ~ ratingLaw + 
+                    age + gender + education ,
+                  data=survey_t1_CAM)
+#coeftest(model_H2_t1, vcov = vcovHC(model_H2_t1, type="HC1"))
+model_H2_t1_density_cc<- lm(density_macro_t1 ~  climate_concern  + 
+                    age + gender + education ,
+                  data=survey_t1_CAM)
+model_H2_t1_density_law <- lm(density_macro_t1 ~  ratingLaw  + 
+                    age + gender + education ,
+                  data=survey_t1_CAM)
+
+```
+
+Rating of law and climate change concern        
+**Density indicator**         
+Both are close to significance but not quite
+
+```{r}
+
+tab_model(model_H2_t1_density_cc); tab_model(model_H2_t1_density_law)
+```
+Rating of law and climate change concern        
+
+**Number of nodes indicator**               
+Climate concern close ~ approaching significance
+```{r}
+tab_model(model_H2_t1_nodes_cc); tab_model(model_H2_t1_nodes_law)
+
+```
+
+#### specification under the curve analysis latent properties
+```{r, include=FALSE, warning=FALSE,  comment=FALSE}
+
+specs <- setup(data = survey_t1_CAM, 
+               y = c("num_edges_macro_t1", "num_nodes_macro_t1", "centr_betw_macro_t1","degreetot_micro_Klimagesetz_t1", "centr_clo_micro_Klimagesetz_t1",
+                     "centr_eigen_macro_t1", "centr_clo_macro_t1", "centr_degree_macro_t1", "assortativityDegree_macro_t1", "density_macro_t1"), 
+               x = c("ratingLaw"), 
+               model = "lm", 
+               controls = c("gender", "age", "education") )
+
+hyp_2 = specr(specs)
+summary(hyp_2)
+#Spec_analysis_latent_boxplot
+
+
+### standardize
+std_vars <- c("num_edges_macro_t1", "num_nodes_macro_t1", "centr_betw_macro_t1","degreetot_micro_Klimagesetz_t1",
+                     "centr_clo_micro_Klimagesetz_t1","centr_eigen_macro_t1", "centr_clo_macro_t1", "centr_degree_macro_t1",
+                     "assortativityDegree_macro_t1", "density_macro_t1",
+                     "climate_concern", "age", "ratingLaw")
+survey_t1_CAM <- survey_t1_CAM %>% 
+  mutate(across(std_vars, function(x) (x - mean(x, na.rm = T)) / sd(x, T))) 
+
+specs_latent_std <- setup(data = survey_t1_CAM,  y = c("num_edges_macro_t1", "num_nodes_macro_t1", "centr_betw_macro_t1","degreetot_micro_Klimagesetz_t1",
+                     "centr_clo_micro_Klimagesetz_t1","centr_eigen_macro_t1", "centr_clo_macro_t1", "centr_degree_macro_t1",
+                     "assortativityDegree_macro_t1", "density_macro_t1"), 
+               x = c("ratingLaw"), 
+               model = "lm", 
+               controls = c("gender", "age", "education") )
+
+hyp2_std <- specr(specs_latent_std)
+
+
+specs_latent_std_cc <- setup(data = survey_t1_CAM,  y = c("num_edges_macro_t1", "num_nodes_macro_t1", "centr_betw_macro_t1","degreetot_micro_Klimagesetz_t1",
+                     "centr_clo_micro_Klimagesetz_t1","centr_eigen_macro_t1", "centr_clo_macro_t1", "centr_degree_macro_t1",
+                     "assortativityDegree_macro_t1", "density_macro_t1"),
+               x = c("climate_concern"), 
+               model = "lm", 
+               controls = c("gender", "age", "education") )
+
+hyp2_std_cc <- specr(specs_latent_std_cc)
+
+```
+
+Rating of law
+
+```{r, warning=FALSE,  comment=FALSE}
+plot(hyp_2, choices = c("x", "y", "controls")) 
+plot(hyp_2, type="boxplot", choices = c("x", "y", "controls"))  +  scale_fill_brewer(palette = "Dark2") 
+```
+
+
+Standardized rating of law
+```{r, warning=FALSE, comment=FALSE}
+plot(hyp2_std, choices = c("x", "y", "controls")) 
+plot(hyp2_std, type="boxplot", choices = c("x", "y", "controls"))  +  scale_fill_brewer(palette = "Dark2") 
+```
+
+With climate change concern as predictor
+
+```{r}
+plot(hyp2_std_cc, choices = c("x", "y", "controls")) 
+
+plot(hyp2_std_cc, type="boxplot", choices = c("x", "y", "controls"))  +  scale_fill_brewer(palette = "Dark2") 
+```
+
+
+### Hypothesis 3 content
+
+### Hypothesis 4
+*We expect that evaluation of the law will be positively correlated with the emotional properties of mental models. Such that a more positive evaluation of the law will be associated with more positive valence.*
+    
+Supported       
+```{r, warning=FALSE, comment=FALSE}
+model_H4_t1 <- lm(mean_valence_macro_t1 ~  ratingLaw +
+                      age + gender + education ,
+                  data=survey_t1_CAM)
+tab_model(model_H4_t1)
+
+set_theme (base = theme_classic())
+plot_model(model_H4_t1, type="emm", terms="ratingLaw") +
+  labs(x= "evalutation of climate protection law", y="mental model valence indicator", 
+       title= "Predicted values of mean valence")
+
+ggplot(survey_t1_CAM, aes(x=ratingLaw, y=mean_valence_macro_t1) ) +
+  geom_jitter(height=.1, width=.1) + geom_smooth() +
+  labs(x= "evalutation of climate protection law", y="mental model valence indicator") +
+ # ylim(-3.5, 3.5) + xlim(-0.5, 9) + 
+  geom_abline(intercept=0, slope=0 ) + 
+  theme_minimal() 
+```
+
+
+```{r, include=FALSE}
+survey_experimentalGroup_CAM.long <- readRDS(file="output/survey_experimentalGroup_CAM.long.rds")
+
+```
+
+## Longitudinal       
+
+
+### Hypothesis 5        
+
+*We expect to find temporal differences in latent properties of mental models from wave 2 to wave 1. Such that the complexity of mental models will increase from wave 1 to wave 2. *        
+    
+Not supported       
+
+```{r}
+ggstatsplot::ggbetweenstats(
+  survey_experimentalGroup_CAM.long,
+  x    = wave,
+  y    = num_nodes_macro,
+  type = "parametric",
+  xlab = "wave",
+  ylab = "number of nodes",
+  title ="number of nodes difference between waves"
+
+)
+ggstatsplot::ggbetweenstats(
+  survey_experimentalGroup_CAM.long,
+  x    = wave,
+  y    = centr_clo_micro_Klimagesetz,
+  type = "parametric",
+  xlab = "wave",
+  ylab = "density_macro",
+  title ="Density difference between waves"
+
+)
+
+model_H5_nodes <- lmer(num_nodes_macro ~ wave + media_engagement_rel  +  ratingLaw +
+                         age + gender + education + 
+                   (1|participantID) ,
+                  data=survey_experimentalGroup_CAM.long)
+tab_model(model_H5_nodes)
+model_H5_density <- lmer(density_macro ~ wave + media_engagement_rel  +  ratingLaw +
+                    age + gender + education +
+                      (1|participantID) ,
+                  data=survey_experimentalGroup_CAM.long)
+tab_model(model_H5_density)
+
+model_H5_density_cc <- lmer(density_macro ~ wave + media_engagement_rel  +  climate_concern_rel +
+                    age + gender + education +
+                      (1|participantID) ,
+                  data=survey_experimentalGroup_CAM.long)
+tab_model(model_H5_density_cc)
+#plot_model(model_H5_density_cc, type="pred", terms=c( "media_engagement_rel"))
+
+```
+*H5a: This effect may be moderated by engagement with the topic. Such that those that spend more time researching or discussing the topic show an even higher increase in complexity of mental models. *        
+    
+Not supported       
+
+```{r}
+## mediation
+model_H5a_nodes <- lmer(num_nodes_macro ~ wave*media_engagement_rel  +  ratingLaw +
+                         age + gender + education + 
+                   (1|participantID) ,
+                  data=survey_experimentalGroup_CAM.long)
+#tab_model(model_H5a_nodes)
+#plot_model(model_H5a_nodes, type="pred", terms=c("wave", "media_engagement_rel"))
+
+
+model_H5a_density <- lmer(density_macro ~ wave*media_engagement_rel + climate_concern_rel +
+                    age + gender + education +
+                      (1|participantID) ,
+                  data=survey_experimentalGroup_CAM.long)
+tab_model(model_H5a_density)
+#plot_model(model_H5a_density, type="pred", terms=c("wave", "media_engagement_rel"))
+
+model_H5a_density2 <- lmer(density_macro ~ media_engagement_rel + intendedVote* + wave +
+                    age + gender + education +
+                      (1|participantID) ,
+                  data=survey_experimentalGroup_CAM.long)
+#tab_model(model_H5a_density2)
+```
+
+#### Specification curve analysis longitdunal
+```{r, warning=FALSE, include=FALSE}
+
+survey_experimentalGroup_CAM.long$group1 <- survey_experimentalGroup_CAM.long$wave
+
+specs_long <- setup(data = survey_experimentalGroup_CAM.long, 
+               y = c("num_edges_macro", "num_nodes_macro", "centr_betw_macro","degreetot_micro_Klimagesetz", "centr_clo_micro_Klimagesetz",
+                     "centr_eigen_macro", "centr_clo_macro", "centr_degree_macro", "assortativityDegree_macro", "density_macro"), 
+               x = c("climate_concern", "wave"), 
+               model = "lm", 
+       #        subsets = list(group1 = unique(survey_experimentalGroup_CAM.long$group1)),
+               controls = c("gender", "age", "education") )
+
+
+hyp_5 = specr(specs_long)
+
+```
+
+```{r, warning=FALSE,  comment=FALSE}
+plot(hyp_5, type="boxplot", choices = c("x", "y", "controls"))  +  scale_fill_brewer(palette = "Dark2") 
+```
+
+
+### Hypothesis 6        
+
+*H6: We expect temporal changes such that emotional properties will become more extreme over time (higher or lower valence). We expect an interaction effect as a function of [intended vote]. Such that [yes (no) intention-voters] will show an increase (decrease) in positive valence. *       
+    
+Not supported (p=.145)       
+
+```{r}
+model_H6_macro <- lmer(mean_valence_macro ~ wave*intendedVote  +  
+                         climate_concern_rel  + media_engagement_rel +
+                         age + gender + education + 
+                   (1|participantID) ,
+                  data=survey_experimentalGroup_CAM.long)
+tab_model(model_H6_macro)
+
+```
+
+**Exploratory: Media engagement by intended vote**        
+To be discussed:
+The media engagment item was phrased as: How did you inform yourself about the climate law and the vote **in the past month** this may in itself be a temproal effect?       
+
+Not significant relationship, but approaches significance (p =.055)       
+
+```{r}
+survey_experimentalGroup_CAM.long$intendedVote <- factor(survey_experimentalGroup_CAM.long$intendedVote, levels=c(0,1), labels=c("no", "yes"))
+survey_experimentalGroup_CAM.long$wave <- factor(survey_experimentalGroup_CAM.long$wave)
+model_H6_macro_media <- lmer(mean_valence_macro ~ wave*media_engagement_rel + 
+                               intendedVote*media_engagement_rel +
+                         climate_concern_rel  +
+                         age + gender + education + 
+                   (1|participantID),
+                  data=survey_experimentalGroup_CAM.long)
+tab_model(model_H6_macro_media)
+plot_model(model_H6_macro_media, type="emm", terms=c("media_engagement_rel", "intendedVote"),
+           colors=c("darkred", "darkgreen"))+
+   theme(plot.caption = element_text(hjust = 0),
+        plot.title.position = "plot",
+        plot.caption.position =  "plot",
+        plot.title = element_text(size = 23, face = "bold"),
+        axis.title  = element_text(size = 23),
+        axis.text = element_text(size = 21),
+        legend.title = element_text(size = 19, face="plain"),
+       strip.text  = element_text(size = 19, face="plain"),
+        legend.text = element_text(size = 19))
+
+
+
+```
+
+
+```{r, include=FALSE}
+##### complexity versus the control group
+
+control <- subset(survey_CAM, wave=="wave2_control")
+wave2 <- subset(survey_CAM, wave=="t2")
+wave1 <- subset(survey_CAM, wave=="t1")
+
+#homoscedasticity
+var.test(control$degreetot_micro_Klimagesetz,wave2$degreetot_micro_Klimagesetz)
+var.test(control$degreetot_micro_Klimagesetz,wave1$degreetot_micro_Klimagesetz)
+var.test(wave1$degreetot_micro_Klimagesetz,wave2$degreetot_micro_Klimagesetz)
+
+# difference between control and wave 2 not significant, p-value = 0.1994 but almost is (so some difference attributable to CAM process maybw)
+t.test(control$degreetot_micro_Klimagesetz, wave2$degreetot_micro_Klimagesetz, var.equal = TRUE)
+# difference between wave 1 and control group (both do CAM for first time) is not signficant p =0.9115 (very much the same -may speak for doing CAM first time is more similar)
+t.test(control$degreetot_micro_Klimagesetz, wave1$degreetot_micro_Klimagesetz, var.equal = TRUE)
+# difference between wave 1 and wave 2 approaches significance p-value = 0.07262
+t.test(wave1$degreetot_micro_Klimagesetz, wave2$degreetot_micro_Klimagesetz, var.equal = TRUE)
+
+
+
+
+```
+
+
+#### Hypothesis 7       
+
+Number of ambivalent concepts is 0 for both waves...
+```{r}
+
+table(survey_CAM$num_nodes_ambi_macro, survey_CAM$wave)
+t.test(survey_t1_CAM$num_nodes_ambi_macro_t1, survey_t2_CAM$num_nodes_ambi_macro_t2, paired = TRUE)
+wilcox.test(survey_t1_CAM$num_nodes_ambi_macro_t1, survey_t2_CAM$num_nodes_ambi_macro_t2, paired = TRUE)
+
+survey_ambiv <- survey_CAM %>% select(wave, num_nodes_ambi_macro)
+
+ggplot(survey_ambiv, aes(x=wave, y=num_nodes_ambi_macro) ) + 
+  geom_boxplot() + labs(x="wave",y="density", title=NULL) +
+  theme_minimal()  + theme(axis.text.x=element_text(size=14))
+
+```
+
+
+### exploratory analysis 
+
+
+# Mixed
+
+
+# References
+
+

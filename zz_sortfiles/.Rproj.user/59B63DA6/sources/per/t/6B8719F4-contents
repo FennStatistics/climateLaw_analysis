@@ -1,0 +1,734 @@
+---
+title: "title"
+author: "your name"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    number_sections: yes
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+  word_document:
+    toc: yes
+    toc_depth: '3'
+bibliography: Library.bib
+biblio-style: apalike
+link-citations: yes
+---
+
+
+```{css, echo=FALSE}
+.CSSoutput {
+  background-color: white;
+  border: 1px solid black;
+}
+```
+```{r setup chunks, include=FALSE}
+knitr::opts_chunk$set(class.source = "CSSoutput",
+                      eval = TRUE, echo = TRUE, include = TRUE,      
+                      fig.align='center', fig.show='asis',
+                      size='footnotesize')
+
+```
+
+
+```{r packages, include=FALSE}
+# reset R environment
+# rm(list=ls(all=TRUE)) # ! not needed in rmarkdown, but good practice
+# graphics.off() # ! not needed in rmarkdown
+
+################
+# install and load packages
+################
+#  if packages are not already installed, the function will install and activate them
+usePackage <- function(p) {
+  if (!is.element(p, installed.packages()[,1]))
+    install.packages(p, dep = TRUE, repos = "http://cran.us.r-project.org")
+  require(p, character.only = TRUE)
+}
+
+usePackage("tidyverse") # data cleaning and summarizing
+usePackage("jsonlite") # load SPSS, ... data 
+
+## psychometric analysis
+usePackage("moments") # skewness, kurtosis
+usePackage("psych")
+
+## CAM
+usePackage("igraph") # load SPSS, ... data 
+
+
+
+## outputs
+usePackage("stargazer") # create tables
+usePackage("DT") # create dynamic tables
+
+## wordlists
+usePackage("tm")
+
+rm(usePackage)
+```
+
+```{r additionalFunctions, include=FALSE}
+################
+# install and load packages
+################
+## load own functions
+setwd("functions")
+source(file = "getDescriptives.R", encoding = "UTF-8")
+source(file = "saveGraphic.R", encoding = "UTF-8")
+setwd("..") # ! not needed in rmarkdown, but good practice
+
+
+## load CAM App functions
+setwd("functions_CAMapp")
+source(file = "create_CAMfiles.R", encoding = "UTF-8")
+source(file = "draw_CAM.R", encoding = "UTF-8")
+source(file = "compute_indicatorsCAM.R", encoding = "UTF-8")
+source(file = "create_wordlist2.R", encoding = "UTF-8")
+source(file = "helperFunctions.R", encoding = "UTF-8")
+setwd("..") # ! not needed in rmarkdown, but good practice
+```
+
+
+control group
+```{r loadCleanData, include=FALSE}
+################
+## for control group
+#### Qualtrics pre and post
+## load data
+df_control_pre <- read.csv(file = "data.control/Klimagesetz.control.Teil1.csv", encoding = "UTF-8") # Umlaute
+df_control_pre <- df_control_pre[-c(1,2), ]
+df_control_post <- read.csv(file = "data.control/Klimagesetz.control.Teil2.csv", encoding = "UTF-8")
+df_control_post <- df_control_post[-c(1,2), ]
+
+
+# merge data
+################
+### ! primary key: participantID
+# first: Qualtrics 
+
+##### make participant id into correct format
+df_control_pre$participantID <- as.character(x = df_control_pre$u)
+# this was a test id by innofact
+df_control_pre <- df_control_pre %>% filter(!u=="523aa001f490a2e04b04eac38f3bf6f9")
+df_control_pre <- df_control_pre %>% filter(!participantID=="")
+
+df_control_post$participantID <- as.character(x = df_control_post$participantID)
+df_control_post <- df_control_post %>% filter(!participantID=="")
+df_control_post <- df_control_post %>% filter(!participantID=="523aa001f490a2e04b04eac38f3bf6f9")
+
+### merge both Qualtrics dataframes
+df_control_noCam <- inner_join(x = df_control_pre, y = df_control_post, by = c("participantID"))
+
+
+```
+
+```{r}
+# CAM file control group
+################
+
+##### CAMEL
+read_file('data.control//jatos_results_control.txt') %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '') -> df_CAMEL_control
+
+df_CAMEL_control_list <- list()
+for(i in 1:length(df_CAMEL_control)){
+  df_CAMEL_control_list[[i]] <- jsonlite::fromJSON(txt = df_CAMEL_control[[i]])
+}
+
+
+### create CAM single files (nodes, connectors, merged)
+df_CAMEL_control <- create_CAMfiles(datCAM = df_CAMEL_control_list, reDeleted = TRUE)
+
+##### CAMEL
+## code ambivalent as 0
+df_CAMEL_control[[1]]$value <- ifelse(test = df_CAMEL_control[[1]]$value == 10, yes = 0, no = df_CAMEL_control[[1]]$value)
+df_CAMEL_control[[3]]$value <- ifelse(test = df_CAMEL_control[[3]]$value == 10, yes = 0, no = df_CAMEL_control[[3]]$value)
+
+
+## draw CAMs
+CAM_control_drawn <- draw_CAM(dat_merged = df_CAMEL_control[[3]],
+                     dat_nodes = df_CAMEL_control[[1]],ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+
+## remove all data sets where no ID is provided
+df_CAMEL_control[[1]] <- df_CAMEL_control[[1]][df_CAMEL_control[[1]]$participantCAM %in% names(CAM_control_drawn), ]
+df_CAMEL_control[[2]] <- df_CAMEL_control[[2]][df_CAMEL_control[[2]]$participantCAM %in% names(CAM_control_drawn), ]
+df_CAMEL_control[[3]] <- df_CAMEL_control[[3]][df_CAMEL_control[[3]]$participantCAM.x %in% names(CAM_control_drawn), ]
+
+
+### CAM indicators
+CAMindicators_control <- compute_indicatorsCAM(drawn_CAM = CAM_control_drawn,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+
+```
+
+
+```{r}
+### merge control groups qualtrics dataset with CAM control group ####
+
+# add CAM network indicators to Qualtrics 
+df_control <- merge(x = df_control_noCam, y = CAMindicators_control, by.x = c("participantID"), by.y= c("participantCAM"))
+
+
+df_control$age.n <- as.numeric(df_control$age)
+# age categories according to the quotas we received by innofact
+df_control$age.cat <- cut(df_control$age.n, breaks=c(17, 29, 39, 49, 59, 81) )
+
+# save control group data set
+write.csv(df_control, "df_control.csv")
+```
+
+### wave 1
+
+
+```{r loadCleanData, include=FALSE}
+#### wave 1 data prep
+# load data
+##### Qualtrics
+## change working directory and load data
+df_wave1_pre <- read.csv(file = "data/Klimagesetz.wave1.Teil1.csv", encoding = "UTF-8") # Umlaute
+df_wave1_pre <- df_wave1_pre[-c(1, 2),]
+df_wave1_post <- read.csv(file = "data/Klimagesetz.wave1.Teil2.csv", encoding = "UTF-8")
+df_wave1_post <- df_wave1_post[-c(1, 2),]
+
+##### Qualtrics
+df_wave1_pre$participantID <- as.character(x = df_wave1_pre$u)
+df_wave1_post$participantID <- as.character(x = df_wave1_post$participantID)
+df_wave1_pre <- df_wave1_pre %>% filter(!participantID=="")
+df_wave1_post <- df_wave1_post %>% filter(!participantID=="")
+
+### merge pre and post Qualtrics wave 1
+df_wave1_noCam <- merge(x = df_wave1_pre, y = df_wave1_post, by = c("participantID", "IPAddress"))
+df_wave1_noCam <- df_wave1_noCam %>% select(!u.x) %>% select(!u.y)
+
+# merge with IDs from  innofact
+df_id.match <- read.csv(file = "data.wave2/Match_participantID.csv", sep=";", encoding = "UTF-8") # Umlaute
+df_id.match <- df_id.match %>% select(starts_with("participant"))
+df_id.match <- unique(df_id.match)
+
+# this ist the full wave 1 data set without CAM data
+df_wave1_noCamMatched <- merge(df_wave1_noCam, df_id.match, by.x="participantID" ,by.y="participantID.wave1" )
+df_wave1_noCamMatched <- unique(df_wave1_noCamMatched)
+
+```
+
+
+```{r mergeData, include=FALSE}
+#### CAM file wave 1
+
+##### CAMEL
+read_file('data/jatos_results_new.txt') %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '') -> df_CAMEL
+
+df_CAMEL_list <- list()
+for(i in 1:length(df_CAMEL)){
+  df_CAMEL_list[[i]] <- jsonlite::fromJSON(txt = df_CAMEL[[i]])
+}
+
+
+### create CAM single files (nodes, connectors, merged)
+df_CAMEL <- create_CAMfiles(datCAM = df_CAMEL_list, reDeleted = TRUE)
+
+##### CAMEL
+## code ambivalent as 0
+df_CAMEL[[1]]$value <- ifelse(test = df_CAMEL[[1]]$value == 10, yes = 0, no = df_CAMEL[[1]]$value)
+df_CAMEL[[3]]$value <- ifelse(test = df_CAMEL[[3]]$value == 10, yes = 0, no = df_CAMEL[[3]]$value)
+## draw CAMs
+CAMdrawn <- draw_CAM(dat_merged = df_CAMEL[[3]],
+                     dat_nodes = df_CAMEL[[1]],ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+
+
+## remove all data sets where no ID is provided
+df_CAMEL[[1]] <- df_CAMEL[[1]][df_CAMEL[[1]]$participantCAM %in% names(CAMdrawn), ]
+df_CAMEL[[2]] <- df_CAMEL[[2]][df_CAMEL[[2]]$participantCAM %in% names(CAMdrawn), ]
+df_CAMEL[[3]] <- df_CAMEL[[3]][df_CAMEL[[3]]$participantCAM.x %in% names(CAMdrawn), ]
+
+## rename identical terms
+nodes_renamed <- rename_identicalTerms(dat_nodes = df_CAMEL[[1]], drawn_CAM = CAMdrawn)
+
+## draw CAMs second time
+CAMdrawn <- draw_CAM(dat_merged = df_CAMEL[[3]],
+                     dat_nodes = nodes_renamed,ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+
+
+### CAM indicators
+CAMindicators <- compute_indicatorsCAM(drawn_CAM = CAMdrawn,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+
+
+```
+
+```{r}
+### merge data qualtrics and CAM wave 1
+
+## second: add CAM network indicators to Qualtrics 
+df_wave1 <- merge(x = df_wave1_noCamMatched, y = CAMindicators, by.x = c("participantID"), by.y= c("participantCAM"))
+
+
+
+## define some variables
+# time
+df_wave1 <- df_wave1 %>% mutate(
+  time = as.numeric(round(difftime(EndDate.y,StartDate.x, units= "mins"),2) ),
+  time.mins = round(time,0),
+  
+  poltical.orientation = as.numeric(politicalorientation_1),
+  vote = factor(intended.vote, levels=c("Ja", "Nein"), labels=c("yes", "no")),
+)
+
+```
+
+
+```{r}
+### save data set wave 1
+write.csv(df_wave1, "df_wave1.csv")
+
+# save ids of completes
+df_inner.w1.ids <- df_inner %>% select(participantID)
+df_inner.w1.ids <- unique(df_inner)
+write.csv(df_inner,"wave1.ids.complete.csv" )
+```
+
+
+
+### wave 2
+```{r, include= FALSE}
+### wave  2 ####
+#### Qualtrics
+## load data
+df1_wave2_pre <- read.csv(file = "data.wave2/Klimagesetz.wave2.Teil1.csv", encoding = "UTF-8") # Umlaute
+df1_wave2_pre <- df1_wave2_pre[-c(1,2), ]
+
+df2_wave2_post <- read.csv(file = "data.wave2/Klimagesetz.wave2.Teil2.csv", encoding = "UTF-8")
+df2_wave2_post <- df2_wave2_post[-c(1,2), ]
+
+# merge data
+################
+### ! primary key: participantID
+
+# make participantID columns in correct format
+df1_wave2_pre$participantID <- as.character(x = df1_wave2_pre$u)
+df1_wave2_pre <- df1_wave2_pre %>% filter(!participantID=="")
+
+df2_wave2_post$participantID <- as.character(x = df2_wave2_post$participantID)
+df2_wave2_post <- df2_wave2_post %>% filter(!participantID=="")
+# test run from innofact
+df2_wave2_post <- df2_wave2_post %>% filter(!participantID=="ddde09e8ac4604983c2e313df3672338")
+
+## merge both Qualtrics frames
+df_wave2_noCam <- merge(x = df1_wave2_pre, y = df2_wave2_post, by = c("participantID", "IPAddress"))
+
+### matching ids
+
+# ID matching file by market research institute
+df_id.match <- read.csv(file = "data.wave2/Match_participantID.csv", sep=";", encoding = "UTF-8") # Umlaute
+df_id.match_wave2 <- df_id.match %>% select(participantID.wave2)
+df_id.match_wave2 <- unique(df_id.match_wave2)
+
+# without the u columns because not necessary for merging
+df_wave2_noCam <- df_wave2_noCam %>% select(!u.x) %>% select(!u.y) 
+df_wave2_noCam <- unique(df_wave2_noCam)
+
+# merge Qualtrics wave 2 with matching IDs
+# this is the full wave 2 data set without CAM data
+df_wave2_noCamMatched <- merge(df_wave2_noCam, df_id.match_wave2, by.x="participantID" ,by.y="participantID.wave2" )
+df_wave2_noCamMatched <- unique(df_wave2_noCamMatched)
+
+```
+
+
+```{r}
+##### CAMEL wave 2
+read_file('data.wave2/jatos_results_wave2.txt') %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '') -> df_CAMEL_wave2
+
+df_CAMEL_wave2_list <- list()
+for(i in 1:length(df_CAMEL_wave2)){
+  df_CAMEL_wave2_list[[i]] <- jsonlite::fromJSON(txt = df_CAMEL_wave2[[i]])
+}
+
+### create CAM single files (nodes, connectors, merged)
+df_CAMEL_wave2 <- create_CAMfiles(datCAM = df_CAMEL_wave2_list, reDeleted = TRUE)
+
+## code ambivalent as 0
+df_CAMEL_wave2[[1]]$value <- ifelse(test = df_CAMEL_wave2[[1]]$value == 10, yes = 0, no = df_CAMEL_wave2[[1]]$value)
+df_CAMEL_wave2[[3]]$value <- ifelse(test = df_CAMEL_wave2[[3]]$value == 10, yes = 0, no = df_CAMEL_wave2[[3]]$value)
+## draw CAMs
+CAMdrawn_wave2 <- draw_CAM(dat_merged = df_CAMEL_wave2[[3]],
+                     dat_nodes = df_CAMEL_wave2[[1]],ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+
+## remove all data sets where no ID is provided
+df_CAMEL_wave2[[1]] <- df_CAMEL_wave2[[1]][df_CAMEL_wave2[[1]]$participantCAM %in% names(CAMdrawn.w2), ]
+df_CAMEL_wave2[[2]] <- df_CAMEL_wave2[[2]][df_CAMEL_wave2[[2]]$participantCAM %in% names(CAMdrawn.w2), ]
+df_CAMEL_wave2[[3]] <- df_CAMEL_wave2[[3]][df_CAMEL_wave2[[3]]$participantCAM.x %in% names(CAMdrawn.w2), ]
+
+## rename identical terms
+nodes_renamed.w2 <- rename_identicalTerms(dat_nodes = df_CAMEL_wave2[[1]], drawn_CAM = CAMdrawn_wave2)
+
+## draw CAMs second time
+CAMdrawn_wave2 <- draw_CAM(dat_merged = df_CAMEL_wave2[[3]],
+                     dat_nodes = nodes_renamed.w2,ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+
+### CAM indicators
+CAMindicators_wave2 <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_wave2,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+
+
+```
+
+
+
+```{r}
+### merge wave2 qualtrics dataset with CAM wave 2 ###
+
+# add CAM network indicators to Qualtrics 
+df_wave2 <- merge(x = df_wave2_noCamMatched, y = CAMindicators_wave2, by.x = c("participantID"), by.y= c("participantCAM"))
+# n = 320
+
+write.csv(df_wave2, "df_wave2.csv")
+
+```
+
+```{r}
+### merge wave 1 and wave 2
+# wave 1 full dataframe (CAM plus both qualtrics)
+df_wave1 <- read.csv(file = "data/data.CAM.wave1.csv", encoding = "UTF-8")
+
+df_bothWaves <- merge(df_wave1, df_wave2, by.x="participantID.wave2", by.y="participantID")
+write.csv(df_bothWaves, "df_bothWaves.csv")
+```
+
+
+
+
+
+
+# check bad CAMs
+```{r, include =FALSE}
+
+### draw CAMs
+# CAMdrawn <- draw_CAM(dat_merged = df_CAMEL[[3]],
+#                      dat_nodes = df_CAMEL[[1]],ids_CAMs = "all", plot_CAM = FALSE,
+#                      relvertexsize = 3,
+#                      reledgesize = 1)
+# setwd("CAMs as JSON and R format BGE")
+# ids_CAMs <- unique(df_CAMEL[[3]]$CAM.x); length(ids_CAMs)
+# for(i in 1:length(ids_CAMs)){
+#     save_graphic(filename = paste0(ids_CAMs[i]))
+#   CAM_igraph <- CAMdrawn[[c(1:length(CAMdrawn))[
+#     names(CAMdrawn) == paste0(unique(df_CAMEL[[3]]$CAM.x)[i] )]]]
+#   plot(CAM_igraph, edge.arrow.size = .7,
+#        layout=layout_nicely, vertex.frame.color="black", asp = .5, margin = -0.1,
+#        vertex.size = 12, vertex.label.cex = .9)
+#   dev.off()
+# }
+# 
+# for(i in 1:length(raw_CAM)){
+#   if(!is_empty(raw_CAM[[i]]$nodes)){
+#     if(nrow(raw_CAM[[i]]$nodes) > 5){
+#       write(toJSON(raw_CAM[[i]], encoding = "UTF-8"),
+#             paste0(raw_CAM[[i]]$idCAM, ".json"))
+#     }
+#   }
+# }
+# setwd("..")
+
+
+
+#
+# dict_german <- readr::read_table(file = "de_frami.txt", col_names = TRUE)
+# 
+# dict_german <- str_subset(string = dict_german$words, pattern = "/")
+# dict_german <- str_remove_all(string = dict_german, pattern = "/.*$")
+# dict_german <- str_subset(string = dict_german, pattern = "^[[:alpha:]]{2,}")
+# dict_german <- c(dict_german, "globale", "KOGNITIVE", "Modelle", "Nutzeneffekte", "Faktoren", "Soziale")
+# dict_german <- tolower(x = dict_german)
+# dict_german <- dict_german[nchar(x = dict_german) >= 5]
+# dict_german <- unique(dict_german)
+```
+
+```{r}
+
+# rating of law = 2 items into 1
+df_wave2 <- df_wave2 %>%
+  mutate (rating_positive_1 = as.numeric(rating_positive_1),
+          rating_favor_1 = as.numeric(rating_favor_1)) %>%
+  mutate(rating.law = rowMeans(cbind( rating_positive_1, rating_favor_1) ))
+
+cor.test(df_wave2$rating_favor_1, df_wave2$rating_positive_1)
+
+### climate change concern 
+# transform factor into numeric so can have a mean climate change concern value
+df_inner.wave2_noCAM[44:47] <- sapply(df_inner.wave2_noCAM[44:47] , factor, levels=c("stimme überhaupt nicht zu", "stimme nicht zu", "stimme eher nicht zu", 
+                                                                                     "stimme eher zu", "stimme zu", "stimme voll und ganz zu"),
+         labels = c(1, 2, 3, 4, 5, 6)) 
+df_inner.wave2_noCAM[44:47]  <- sapply(df_inner.wave2_noCAM[44:47] , as.numeric)
+df_inner.wave2_noCAM <- df_inner.wave2_noCAM %>%
+  mutate(climate_concern = rowMeans(cbind( cc_concerns_1, cc_concerns_2, cc_concerns_3, cc_concerns_4)))
+  
+df_inner.wave2_noCAM <- df_inner.wave2_noCAM %>% mutate(
+  time = as.numeric(round(difftime(EndDate.y,StartDate.x, units= "mins"),2) ),
+  time.mins = round(time,0) )
+
+# df_inner.wave2.cut <- df_inner.wave2_noCAM %>% filter(time.mins > 4 & n <3)
+
+```
+
+
+
+# Introduction
+
+
+
+# Background
+
+...
+
+
+# Methods
+
+## Research Questions (Hypotheses)
+
+
+
+# Results
+
+
+## Descriptive statistics / overview
+
+
+climate change concern 
+```{r}
+
+# visualize distribution climate change concern
+ggplot(df_inner.wave2_noCAM, aes(x=climate_concern )) +
+  geom_histogram(bins=20) +
+  theme_minimal()  +
+  theme(axis.title  = element_text(size = 20), 
+        axis.text.y = element_text(size = 18),
+        axis.text.x = element_text(size=16)) +
+        labs(x=NULL, fill="climate concern", y="count")
+```
+
+
+media engagement
+```{r, include=FALSE}
+## media engagamement type and hours
+media.engagement <- df_inner.wave2_noCAM %>% select(participantID, starts_with("engagement"), media, media_6_TEXT ,climate_concern, party_identification, intended.vote, rating.law)
+media.engagement.long <- pivot_longer(media.engagement, cols = 2:6, names_to = "media.engagament.type", values_to = "hours.per.month")
+ 
+media.engagement.long$media.engagament.type <- factor(media.engagement.long$media.engagament.type, 
+                                                 levels=c("engagement_1", "engagement_2", "engagement_3", "engagement_4", "engagement_5" ),
+                                                 labels=c("discussed_or_talked", "TV_or_radio", "flyers_posters", "newspapers_online.print", "social.media"))
+media.engagement.long$hours.per.month <- factor(media.engagement.long$hours.per.month, 
+                                                 levels=c("Gar nicht", "Für circa 1-2 Stunden im letzten Monat", "Für circa 2-3 Stunden im letzten Monat", "Für circa 3-4 Stunden im letzten Monat", 
+                                                          "Für circa 4-5 Stunden im letzten Monat", "Für circa 5-6 Stunden im letzten Monat", "Für circa 6-7 Stunden im letzten Monat", "Für mehr als 7 Stunden im letzten Monat"))
+
+media.engagement.long$hours.per.month.2 <- str_sub(media.engagement.long$hours.per.month, 1,-18)
+media.engagement.long$hours.per.month.2[media.engagement.long$hours.per.month.2==""] <- "Gar nicht"
+media.engagement.long$hours.per.month.2 <- factor( media.engagement.long$hours.per.month.2 , levels=c("Gar nicht", "Für circa 1-2 Stunden", "Für circa 2-3 Stunden", "Für circa 3-4 Stunden", "Für circa 4-5 Stunden", "Für circa 5-6 Stunden", "Für circa 6-7 Stunden", "Für mehr als 7 Stunden"))
+# visualize topic/ media engagement
+
+media.engagement.vis <- media.engagement.long %>% select(media.engagament.type, hours.per.month.2) %>% 
+  group_by(media.engagament.type, hours.per.month.2) %>% tally()
+
+```
+Type of media used as information source
+```{r}
+ggplot(media.engagement.vis, aes(x=media.engagament.type, y=n, fill=hours.per.month.2)) +
+  geom_bar(stat="identity", position="dodge") + 
+  scale_fill_viridis_d() +
+  theme_minimal() +
+  theme(axis.title  = element_text(size = 20), 
+        axis.text.y = element_text(size = 18),
+        axis.text.x = element_text(size=16),
+        strip.text = element_text(size=16)) +
+        labs(x=NULL, fill="hours per month", y="count")
+```
+
+news media
+```{r, include=FALSE}
+
+## this does not yet include open text mentions!!
+
+media.engagement.news <- media.engagement %>% select(!engagement_1 ) %>% select(! engagement_2) %>% select(!engagement_3) %>% select(!engagement_5) %>%
+  mutate(NZZ = 0) %>%
+  mutate(zwanzig.Minuten = 0) %>%
+  mutate (SRF = 0) %>%
+  mutate (Blick = 0) %>%
+  mutate (StGaller.Tagblatt = 0) %>%
+  mutate (Weltwoche = 0) %>%
+  mutate (Luzerner.Zeitung = 0) %>%
+  mutate (Berner.Zeitung.BZ = 0) %>%
+  mutate (Basler.Zeitung = 0) %>%
+  mutate (Nordwestschweiz = 0) %>%
+  mutate (Tages.Anzeiger = 0) %>%
+#  mutate(watson = 0) %>%
+  relocate (NZZ,zwanzig.Minuten, Blick, StGaller.Tagblatt, SRF, Weltwoche, Luzerner.Zeitung,
+            Berner.Zeitung.BZ, Basler.Zeitung, Nordwestschweiz,Tages.Anzeiger, .after=media)
+  
+media.engagement.news$NZZ[grepl("NZZ", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$zwanzig.Minuten[grepl("20 Minuten", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$SRF[grepl("SRF", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Blick[grepl("Blick", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$StGaller.Tagblatt[grepl("St.Galler Tagblatt", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Weltwoche[grepl("Weltwoche", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Luzerner.Zeitung[grepl("Luzerner Zeitung", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Berner.Zeitung.BZ[grepl("Bund", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Basler.Zeitung[grepl("Basler", media.engagement.news$media ) == TRUE] <- 1
+media.engagement.news$Nordwestschweiz[grepl("Nordwestschweiz", media.engagement.news$media) == TRUE] <- 1
+media.engagement.news$Tages.Anzeiger[grepl("Tages-Anzeiger", media.engagement.news$media) == TRUE] <- 1
+#media.engagement.news$watson[grepl("watson", media.engagement.news$media_6_TEXT) == TRUE] <- 1
+
+media.engagement.news.long <- pivot_longer(media.engagement.news, cols=4:14, names_to = "newspaper", values_to = "read" )
+media.engagement.news.long <- media.engagement.news.long %>% filter(read==1)
+
+media.engagement.news.long.vis.rating <- media.engagement.news.long %>% select(newspaper, rating.law) %>%
+  group_by(newspaper, rating.law) %>% tally()
+
+media.engagement.news.long.vis.rating$rating.law.f <- factor(media.engagement.news.long.vis.rating$rating.law)
+
+
+
+```
+
+
+Newspapers used as source of info
+```{r}
+# newspaper and rating law
+ggplot(media.engagement.news.long.vis.rating, aes(x=reorder(newspaper,n), y=n, fill=rating.law)) +
+    scale_fill_gradient2(low="#a50000", mid = "#F6BE00", high="#004020", midpoint=4) +
+    geom_bar(stat="identity") + 
+    theme_minimal() + coord_flip() +
+    theme(axis.title  = element_text(size = 20), 
+          axis.text = element_text(size = 18),
+          strip.text = element_text(size=16)) +
+    labs(x=NULL, fill="rating law", y="count")
+```
+
+
+
+### dropout?
+
+```{r}
+df1_pre.2 <- df1_pre %>% filter(!education=="") %>% filter(attention.check=="Tennisspielen")
+nrow(df1_pre.2)
+nrow(df2_post)
+## not possible to match one participant between pre / post / CAMEL
+nrow(df_inner)
+df_inner.2 <- df_inner %>% filter(time<120)
+describe(df_inner$time)
+ggplot(df_inner.2, aes(x=time)) +
+  geom_boxplot() +
+  theme_minimal()
+  
+```
+
+
+### CAM: any technical problems?
+
+```{r}
+DT::datatable(data = df_inner[, c("participantID", "technical_problem", "technical_problem_2_TEXT")])
+```
+
+
+### Descriptive Network Indicators
+
+```{r}
+sel_var <- c("mean_valence_macro", "num_nodes_macro", "num_edges_macro", "density_macro")
+getDescriptives(dataset = df_inner, variables = sel_var, nameAPAtable = NULL)
+
+psych::corPlot(r = cor(df_inner[,sel_var], use = "pairwise.complete.obs"))
+```
+
+
+```{r, include=FALSE}
+## save as png
+dev.off()
+save_graphic(filename = "output/corTableNetworkIndicators")
+psych::corPlot(r = cor(df_inner[,sel_var], use = "pairwise.complete.obs"))
+dev.off()
+
+```
+## CAM
+
+
+
+### wordlist
+
+```{r}
+### !!! over all CAMs (not subsetted)
+tmp_wordlist <- create_wordlist(dat_nodes = df_CAMEL[[1]],
+                            dat_merged = df_CAMEL[[3]],
+                            order = "frequency",
+                            splitByValence = TRUE,
+                            comments = TRUE)
+
+DT::datatable(data = tmp_wordlist, , options = list(pageLength = 20))
+```
+
+
+
+## Quoting (please remove this for your report!)
+<!-- https://blogdown-demo.rbind.io/2017/08/28/adding-citations-to-posts/ -->
+
+How to cite literature within an rmarkdown document: 
+
+
+1. Blah blah [see @rutkowski2013handbook, pp. 33-35; also @leeuw2012international, ch. 1].
+2. Blah blah [@rutkowski2013handbook, pp. 33-35].
+3. Blah blah [@rutkowski2013handbook; @leeuw2012international].
+4. Rutkowski et al. says blah [-@rutkowski2013handbook].
+5. @rutkowski2013handbook says blah.
+
+
+
+
+
+
+
+# Discussion
+
+
+
+# Appendix
+
+## Test for unidimensionality
+
+*Here we could, for example, check the unidimensionality of the summarized scales (precondition of Cronbach's Alpha).*
+
+
+# References

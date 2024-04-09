@@ -1,0 +1,27 @@
+{
+    "id": "86ED9471",
+    "path": "~/Documents/PhD/Studies/mental models/Swiss climate vote/Analysis_newest_Julius_NF/clean_CAM_data/cleanData.Rmd",
+    "project_path": "cleanData.Rmd",
+    "type": "r_markdown",
+    "hash": "3881877504",
+    "contents": "",
+    "dirty": false,
+    "created": 1693472922224.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "276,14",
+        "scrollLine": "257",
+        "last_setup_crc32": "c1a090f9bb338d19"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1693473350,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1693473350370,
+    "read_only": false,
+    "read_only_alternatives": []
+}

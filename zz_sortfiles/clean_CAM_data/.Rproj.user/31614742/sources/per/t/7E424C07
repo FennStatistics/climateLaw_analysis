@@ -1,0 +1,27 @@
+{
+    "id": "7E424C07",
+    "path": "C:/Users/fenn/Nextcloud/Basel - Climate Law Study/Analysis_03/Analysis_01/clean_CAM_data/cleanData.Rmd",
+    "project_path": "cleanData.Rmd",
+    "type": "r_markdown",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1692022182842.0,
+    "source_on_save": false,
+    "relative_order": 1,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "192,0",
+        "scrollLine": "186",
+        "last_setup_crc32": "d50948a9bb338d19"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1692024249,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1692024249765,
+    "read_only": false,
+    "read_only_alternatives": []
+}

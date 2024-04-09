@@ -1,0 +1,1457 @@
+---
+title: "H1_climateact_emb_0.7"
+output:
+  html_document: default
+  pdf_document: default
+date: "Sys.Date()"
+---
+#Todo: Create plots and logistic regression with wave variable
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Install and load necessary packages
+packages <- c("devtools","here","dplyr","tidyverse","readxl","writexl","hunspell","text2vec","car","broom","lme4","lmerTest",
+              "RColorBrewer","rstatix", "rcompanion")
+for (package in packages) {
+  if (!requireNamespace(package, quietly = TRUE)) {
+    install.packages(package)
+  }
+}
+lapply(packages,library, character.only=T)
+```
+
+```{r}
+#Install and load embedR
+if (!requireNamespace("embedR", quietly = TRUE)) {
+    # If not installed, install it using devtools
+    devtools::install_github("dwulff/embedR")
+}
+
+library("embedR")
+```
+
+```{r}
+setwd(dir="/Users/nfrings/Documents/PhD/Studies/mental models/Swiss climate vote/Embeddings_Voting-main")
+#read in final dataset
+energyact_fin <- read_xlsx("data/energyact_final.xlsx")
+
+#read in matching dataset
+matchids <- read.csv(here::here("data","Match_participantID.csv"),sep = ";")
+matchids2 <- matchids %>% select(participantID.wave1,participantID.wave2)
+
+# Select unique rows
+matchids2 <- unique(matchids2)
+
+#load embeddings as R object
+embedding <- readRDS(here::here("data","embedding.rds"))
+```
+
+```{r,eval=F, echo=F}
+#embed chatGPT list
+#economy words
+embedR::er_set_tokens("cohere" = "NVaCMS3Bk96XnFHpdcqHMX6cCws7LnOTOxI5qRPa","huggingface"="x","openai" = "x")
+
+#embedding_econ = er_embed(c("kosten","teuer","preis","arbeit","investition","wirtschaft","finanzierung","budget","ausgaben","steuern","subvention","gewinn","verlust","rendite","sparen","wettbewerb","verschuldung","einkommen","umsatz","markt"),api="cohere",model="embed-multilingual-v3.0")
+
+# ersten Zeile von gfs bern voc analyse Juni2023
+# strommangel ?
+#-2-4. zeile SVP inhalte  https://www.svp.ch/aktuell/publikationen/medienmitteilungen/erfolgreiches-referendum-gegen-das-teure-und-verlogene-klimaschutz-gesetz/
+#https://stromfresser-gesetz-nein.ch/wp-content/uploads/2023/05/230504_Argumentarium-Referendum-Stromfresser-Gesetz_final-d.pdf
+# ? verbot von benzin autos  und flugreisen, fleischkonsum  Reisen oder Autofahren würde zum Luxus / nur noch fleischlos ernähren dürfte. Verbrennungsmotoren verboten w
+embedding_cost = 
+  er_embed(c("kosten", "strompreis","mehrkosten", "steuer",
+             "verbot", "vorschhrift",   "einschränkung",  "bewegungsfreiheit", "staatlich", "eingriff" ,"steuererhöhungen", "steuern",  
+             "teuer",  "teuerung", "verteuerung", "energiepreis" , "energiekosten", "lebenskosten", "wohnkosten", 
+              "wettbewerbsfähigkeit","arbeitspläte", "wirtschaft"
+          #   "fleischlos" , "reiseverbot", "ernährungssicherheit" , "versorgunssicherheit", "energiesicherheit", "strommangel", "Verbrennungsmotoren",
+
+             ),api="cohere",model="embed-multilingual-v3.0")
+
+#environmental prot words
+# 1. Zeile von gfs bern voc analyse Juni2023
+# 2. zeile https://www.uvek.admin.ch/uvek/de/home/uvek/abstimmungen/klima-und-innovationsgesetz.html
+# 3. zeile grüne https://gruene.ch/umwelt/energie-und-klima/ja-zum-klimaschutz-gesetz ; 4. gletscher initiative Argumentarium_JAzumKlimaschutz-Gesetz_V2.pdf wasserkraft und Solaranlagen
+embedding_protection = er_embed(c("umweltschutz","klimaschutz", "klimaabkommen","planet", "dringend",
+                                  "klimafreundlich", "klimaziele", "erneuerbar", "notwendig", "klimaneutral", 
+                                  "schutz", "nettonull", "emissionsarm", "klimawende" 
+                 
+                                  
+                                 
+                              #    "notwendig", "wirksamkeit" ,"zeitdruck","landschaftsschutz","naturschutz","tierschutz",  "biodiversität","artenschutz",
+                           
+                      #     "nachhaltigkeit", "ressourcenschonend","emissionsreduktion","erneuerbar", "solarkraft", "windkraft", "wasserkraft",  "windpark"
+                          
+                           ),
+                         api="cohere",model="embed-multilingual-v3.0")
+
+#embedding_env = er_embed(c("umweltschutz","klimaschutz","dringend","notwendig","nachhaltigkeit","erneuerbar","ökologie","biodiversität","artenschutz","ressourcenschonung","emission","klimawandel","ökosystem","umweltbewusstsein","grüne energie","verschmutzung","zeitdruck","landschaftsschutz","naturschutz","tierschutz"),api="cohere",model="embed-multilingual-v3.0")
+
+
+
+```
+
+```{r,eval=F, echo=F}
+#save embeddings as R object
+saveRDS(embedding_cost, "data/embedding_cost.rds")
+
+saveRDS(embedding_protection, "data/embedding_protection.rds")
+```
+
+```{r}
+#Remove t1 and t2 from ID
+energyact_fin <- energyact_fin %>%
+  mutate(participantID = gsub("_t[1|2]$", "", participantID))
+```
+
+```{r}
+# 2. Merge energyact_fin with matchids2 based on participantID of wave 1
+# This will add the participantID.wave2 column to your energyact_fin dataframe for matching rows
+energyact_fin <- energyact_fin %>%
+  left_join(matchids2, by = c("participantID" = "participantID.wave1"))
+
+# 3. Update the participantID for wave 1 participants with their corresponding wave 2 IDs
+energyact_fin <- energyact_fin %>%
+  mutate(participantID = if_else(wave == "t1" & !is.na(participantID.wave2), participantID.wave2, participantID))
+
+# 4. Optionally, remove the temporary columns added during the merge
+energyact_fin$participantID.wave1 <- NULL
+energyact_fin$participantID.wave2 <- NULL
+
+# Count the unique participantIDs in the dataframe
+number_of_unique_ids <- energyact_fin %>% 
+  summarise(unique_ids = n_distinct(participantID)) %>%
+  pull(unique_ids)
+
+# Print the number of unique participantIDs
+print(number_of_unique_ids)
+```
+
+```{r}
+set.seed(26)
+
+calculate_max_similarity <- function(embedding_study, embedding_list) {
+  # Calculate cosine similarity
+  similarity_matrix <- sim2(embedding_study, embedding_list, method = "cosine")
+  # Get the maximum similarity score for each word
+  max_similarity <- apply(similarity_matrix, 1, max)
+  return(max_similarity)
+}
+```
+
+```{r}
+#Load embeddings
+embedding_cost <- readRDS( "data/embedding_cost.rds")
+
+embedding_protection <- readRDS("data/embedding_protection.rds")
+
+# Creating a dataframe from the study embedding matrix
+H1_df <- as.data.frame(embedding)
+
+# Save the rownames as the first column in H1_df
+H1_df$word <- rownames(H1_df)
+
+# Reset the rownames of H1_df
+rownames(H1_df) <- NULL
+
+
+
+# Calculate max similarities
+H1_df$max_similarity_cost <- calculate_max_similarity(embedding, embedding_cost)
+H1_df$max_similarity_protection <- calculate_max_similarity(embedding, embedding_protection)
+```
+
+```{r}
+#add similarity columns to energyact_fin
+# Get the names of the last two columns
+last_two_columns <- names(H1_df)[(ncol(H1_df)-1):ncol(H1_df)]
+
+# Add the last two columns from H1_df to energyact_fin
+energyact_fin[last_two_columns] <- H1_df[last_two_columns]
+```
+
+```{r}
+energyact_fin <- energyact_fin %>%
+  mutate(category = case_when(
+    max_similarity_cost >= 0.6 & max_similarity_cost > max_similarity_protection ~ "cost",
+    max_similarity_protection >= 0.6 & max_similarity_protection > max_similarity_cost ~ "protection",
+    TRUE ~ "rest"
+  ))
+```
+
+```{r}
+# Assuming your original dataframe is named energyact_fin
+# First, identify participants present in both waves
+participants_in_both_waves <- energyact_fin %>%
+  group_by(participantID) %>%
+  filter(all(c("t1", "t2") %in% wave)) %>%
+  ungroup() %>%
+  select(participantID) %>%
+  distinct()
+
+# Now, filter the original dataframe to include only those participants
+energyact_fin_both <- energyact_fin %>%
+  semi_join(participants_in_both_waves, by = "participantID")
+
+# Check the structure of the new dataframe
+str(energyact_fin_both)
+```
+
+```{r}
+# Calculate the count of each category per participant
+category_counts <- energyact_fin_both %>%
+  group_by(participantID, category, valence) %>%
+  summarise(count = n(), .groups = 'drop')
+
+# Calculate the total entries per participant
+total_counts <- energyact_fin_both %>%
+  group_by(participantID) %>%
+  summarise(total = n(), .groups = 'drop')
+
+# Merge and calculate proportions
+proportions_df <- left_join(category_counts, total_counts, by = "participantID") %>%
+  mutate(proportion = count / total) %>%
+  select(participantID, category, proportion, valence)
+
+# Pivot wider to have separate columns for each category
+proportions_across <- proportions_df %>%
+  pivot_wider(names_from = category, values_from = proportion, values_fill = list(proportion = 0))
+proportions_across <-proportions_across %>%
+  rename(prop.protection = protection,
+         prop.rest = rest,
+         prop.cost = cost)
+```
+
+```{r}
+#!!!!!!!!!!!!!!!!!!!!!!!!!!
+#Some participants changed their vote from t1 to t2. How should we consider this in the analysis?
+#This means, that when analysing changes across both time points, we have more rows than participants (293 instead of 254).
+
+#Here I calculated the analyses with 293 rows.
+
+# Join the proportions with intendedVote
+energyact_fin_summary <- energyact_fin_both %>%
+  select(participantID, intendedVote, ratingLaw) %>%
+  distinct() %>%
+  left_join(proportions_across, by = "participantID")
+
+# Calculate mean and SD of proportions by intendedVote
+descriptive_stats <- energyact_fin_summary %>%
+  group_by(intendedVote) %>%
+  summarise(across(c(prop.cost, prop.protection, prop.rest), list(mean = ~mean(., na.rm = TRUE), sd = ~sd(., na.rm = TRUE))))
+
+print(descriptive_stats)
+```
+
+
+```{r}
+#Calculating overall descriptive stats with only participants with consistent votes
+
+# Create a summary of votes by participant and wave
+votes_summary <- energyact_fin_both %>%
+  group_by(participantID, wave) %>%
+  summarise(intendedVote = unique(intendedVote), .groups = 'drop') %>%
+  pivot_wider(names_from = wave, values_from = intendedVote, names_prefix = "vote_")
+
+# Identify participants with the same vote in t1 and t2
+consistent_vote_participants <- votes_summary %>%
+  filter(vote_t1 == vote_t2) %>%
+  select(participantID)
+
+# Filter to keep only participants with consistent votes
+energyact_fin_consistent <- energyact_fin_both %>%
+  semi_join(consistent_vote_participants, by = "participantID")
+
+# Calculate category counts and total counts as before
+category_counts_cons <- energyact_fin_consistent %>%
+  group_by(participantID, category) %>%
+  summarise(count = n(), .groups = 'drop')
+
+total_counts_cons <- energyact_fin_consistent %>%
+  group_by(participantID) %>%
+  summarise(total = n(), .groups = 'drop')
+
+# Merge, calculate proportions, and pivot wider
+proportions_cons <- left_join(category_counts_cons, total_counts_cons, by = "participantID") %>%
+  mutate(proportion = count / total) %>%
+  select(participantID, category, proportion)
+
+proportions_wide_cons <- proportions_cons %>%
+  pivot_wider(names_from = category, values_from = proportion, values_fill = list(proportion = 0))
+
+# Join with intendedVote and calculate descriptive statistics
+energyact_fin_summary_cons <- energyact_fin_consistent %>%
+  select(participantID, intendedVote) %>%
+  distinct() %>%
+  left_join(proportions_wide_cons, by = "participantID")
+
+descriptive_stats_cons <- energyact_fin_summary_cons %>%
+  group_by(intendedVote) %>%
+  summarise(across(c(cost, protection, rest), list(mean = ~mean(., na.rm = TRUE), sd = ~sd(., na.rm = TRUE))))
+
+print(descriptive_stats_cons)
+```
+
+```{r}
+# Creating df with consistent participants that were present in both waves with proportions per category, wave, and vote
+proportions_wave_cons <- energyact_fin_consistent %>%
+  group_by(participantID, wave, valence) %>%
+  count(category) %>%
+  ungroup() %>%
+  group_by(participantID, wave) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  mutate(proportion = n / total) %>%
+  select(participantID, wave, category, proportion, valence)
+
+# Pivot wider to have separate columns for each category, filling missing categories with zeros
+proportions_category_separate_cons <- proportions_wave_cons %>%
+  pivot_wider(names_from = category, values_from = proportion, values_fill = list(proportion = 0))
+
+# Ensure joining with intendedVote to include it in the dataset
+proportions_both_vote_wave_cons <- energyact_fin_consistent %>%
+  select(participantID, wave, intendedVote) %>%
+  distinct() %>%
+  left_join(proportions_category_separate_cons, by = c("participantID", "wave"))
+```
+
+
+```{r}
+energyact_fin_summary$valence <- factor(energyact_fin_summary$valence, levels=c(-3,-2,-1,0,1,2,3, 10), 
+                                labels=c("very negative", "negative", "slightly negative","neutral", "slightly positive", "positive", "very positive","ambivalent" ))
+
+energyact_fin_summary$valence <- factor(energyact_fin_summary$valence, levels=c("slightly positive", "positive", "very positive", "ambivalent" , "neutral","slightly negative", "negative", "very negative" ))
+
+ggplot(energyact_fin_summary, aes(x=factor(intendedVote), y=prop.protection, fill=valence) )+
+  geom_boxplot() + labs(title="per person proportion of protection related concepts mentioned and the valence assigned") +
+#  facet_wrap(intendedVote~.) +
+  theme_minimal() +
+  scale_fill_manual(values=c( "#8BD232", "#248F0E",  "#246903","#482B87", "#FFD301"  , "#F54F32","#EF2600",'#C00000' )) +
+  theme(legend.title = element_blank(),
+          legend.position = "bottom") 
+
+energyact_protection_summary.mean <- groupwiseMean (prop.protection ~intendedVote + valence,
+                                             data = energyact_fin_summary)
+energyact_protection_summary.mean$valence <- factor(energyact_protection_summary.mean$valence, levels=c("neutral","slightly positive", "positive", "very positive", "ambivalent" ,  "slightly negative", "negative", "very negative" ))
+energyact_protection_summary.mean$intendedVote <- factor(energyact_protection_summary.mean$intendedVote, levels=c(0,1), labels=c("no", "yes") )
+
+ggplot(energyact_protection_summary.mean, aes(x=intendedVote,  y=Mean, fill=valence) )+
+  geom_bar(stat="identity", position="dodge") + labs(title= "yes versus no voters: mean proportion of protection related concepts mentioned by assigned valence") +
+ # geom_errorbar(aes(ymin=Trad.lower, ymax=Trad.upper)) +
+    theme_minimal() +
+    scale_fill_manual(values=c("#FFD301"  , "#8BD232", "#248F0E",  "#246903","#482B87",  "#F54F32","#EF2600",'#C00000' )) +
+
+     theme(plot.caption = element_text(hjust = 0),
+          plot.title.position = "plot",
+          plot.caption.position =  "plot",
+          plot.title = element_text(size = 16, face = "bold",family = 'Arial', color="black"),
+          axis.title  = element_text(size = 18, family = 'Arial', color="black"),
+          axis.text = element_text(size = 16, family = 'Arial', color="black"),
+          axis.text.y = element_text(size = 13, family = 'Arial', color="black"),
+          axis.text.x = element_text(size = 16, family = 'Arial', color="black"),
+          legend.title = element_text(size = 18, face="plain",family = 'Arial', color="black"),
+          strip.text = element_text(size = 15, face="plain",family = 'Arial', color="black"),
+          legend.text = element_text(size = 16,family = 'Arial', color="black"),
+          legend.position = "bottom") +
+    facet_wrap(valence~., nrow=1)
+
+energyact_protection_summary.mean$valence.binary <- factor(energyact_protection_summary.mean$valence, levels=c("neutral","slightly positive", "positive", "very positive", "ambivalent" ,  "slightly negative", "negative", "very negative" ),
+                                                     labels=c("neutral","positive","positive","positive","ambivalent", "negative", "negative", "negative"))
+
+energyact_protection_summary.mean2 <- energyact_protection_summary.mean %>% filter(valence.binary=="positive" | valence.binary=="negative")
+
+ggplot(energyact_protection_summary.mean2, aes(x=intendedVote,  y=Mean, fill=valence.binary) )+
+  geom_bar(stat="identity", position="dodge") + 
+ # geom_errorbar(aes(ymin=Trad.lower, ymax=Trad.upper)) +
+    theme_minimal() +  labs(title= " people voting yes versus no: mean proportion of cost related concepts mentioned and the valence assigned  ") +
+    scale_fill_manual(values=c( "#248F0E", "#EF2600" )) +
+     theme(plot.caption = element_text(hjust = 0),
+          plot.title.position = "plot",
+          plot.caption.position =  "plot",
+          plot.title = element_text(size = 16, face = "bold",family = 'Arial', color="black"),
+          axis.title  = element_text(size = 18, family = 'Arial', color="black"),
+          axis.text = element_text(size = 16, family = 'Arial', color="black"),
+          axis.text.y = element_text(size = 13, family = 'Arial', color="black"),
+          axis.text.x = element_text(size = 16, family = 'Arial', color="black"),
+          legend.title = element_text(size = 18, face="plain",family = 'Arial', color="black"),
+          strip.text = element_text(size = 15, face="plain",family = 'Arial', color="black"),
+          legend.text = element_text(size = 16,family = 'Arial', color="black"),
+          legend.position = "bottom") 
+
+
+```
+
+
+```{r}
+#### cost
+ggplot(energyact_fin_summary, aes(x=factor(intendedVote), y=prop.cost, fill=valence) )+
+  geom_boxplot() + labs(title="per person proportion of cost related concepts mentioned and the valence assigned") +
+#  facet_wrap(intendedVote~.) +
+  theme_minimal() +
+  scale_fill_manual(values=c( "#8BD232", "#248F0E",  "#246903","#482B87", "#FFD301"  , "#F54F32","#EF2600",'#C00000' )) +
+  theme(legend.title = element_blank(),
+          legend.position = "bottom") 
+
+energyact_econ_summary.mean <- groupwiseMean (prop.cost ~intendedVote + valence,
+                                             data = energyact_fin_summary)
+energyact_econ_summary.mean$valence <- factor(energyact_econ_summary.mean$valence, levels=c("neutral","slightly positive", "positive", "very positive", "ambivalent" ,  "slightly negative", "negative", "very negative" ))
+energyact_econ_summary.mean$intendedVote <- factor(energyact_econ_summary.mean$intendedVote, levels=c(0,1), labels=c("no", "yes") )
+
+ggplot(energyact_econ_summary.mean, aes(x=intendedVote,  y=Mean, fill=valence) )+
+  geom_bar(stat="identity", position="dodge") + 
+ # geom_errorbar(aes(ymin=Trad.lower, ymax=Trad.upper)) +
+    theme_minimal() +  labs(title= " people voting yes versus no: mean proportion of cost related concepts mentioned and the valence assigned  ") +
+    scale_fill_manual(values=c("#FFD301"  , "#8BD232", "#248F0E",  "#246903","#482B87",  "#F54F32","#EF2600",'#C00000' )) +
+     theme(plot.caption = element_text(hjust = 0),
+          plot.title.position = "plot",
+          plot.caption.position =  "plot",
+          plot.title = element_text(size = 16, face = "bold",family = 'Arial', color="black"),
+          axis.title  = element_text(size = 18, family = 'Arial', color="black"),
+          axis.text = element_text(size = 16, family = 'Arial', color="black"),
+          axis.text.y = element_text(size = 13, family = 'Arial', color="black"),
+          axis.text.x = element_text(size = 16, family = 'Arial', color="black"),
+          legend.title = element_text(size = 18, face="plain",family = 'Arial', color="black"),
+          strip.text = element_text(size = 15, face="plain",family = 'Arial', color="black"),
+          legend.text = element_text(size = 16,family = 'Arial', color="black"),
+          legend.position = "bottom") +
+    facet_wrap(valence~., nrow=1)
+
+energyact_econ_summary.mean$valence.binary <- factor(energyact_econ_summary.mean$valence, levels=c("neutral","slightly positive", "positive", "very positive", "ambivalent" ,  "slightly negative", "negative", "very negative" ),
+                                                     labels=c("neutral","positive","positive","positive","ambivalent", "negative", "negative", "negative"))
+
+energyact_econ_summary.mean2 <- energyact_econ_summary.mean %>% filter(valence.binary=="positive" | valence.binary=="negative")
+
+ggplot(energyact_econ_summary.mean2, aes(x=intendedVote,  y=Mean, fill=valence.binary) )+
+  geom_bar(stat="identity", position="dodge") + 
+ # geom_errorbar(aes(ymin=Trad.lower, ymax=Trad.upper)) +
+    theme_minimal() +  labs(title= " people voting yes versus no: mean proportion of cost related concepts mentioned and the valence assigned  ") +
+    scale_fill_manual(values=c( "#248F0E", "#EF2600" )) +
+     theme(plot.caption = element_text(hjust = 0),
+          plot.title.position = "plot",
+          plot.caption.position =  "plot",
+          plot.title = element_text(size = 16, face = "bold",family = 'Arial', color="black"),
+          axis.title  = element_text(size = 18, family = 'Arial', color="black"),
+          axis.text = element_text(size = 16, family = 'Arial', color="black"),
+          axis.text.y = element_text(size = 13, family = 'Arial', color="black"),
+          axis.text.x = element_text(size = 16, family = 'Arial', color="black"),
+          legend.title = element_text(size = 18, face="plain",family = 'Arial', color="black"),
+          strip.text = element_text(size = 15, face="plain",family = 'Arial', color="black"),
+          legend.text = element_text(size = 16,family = 'Arial', color="black"),
+          legend.position = "bottom") 
+
+
+```
+
+```{r}
+setwd(dir="/Users/nfrings/Documents/PhD/Studies/mental models/Swiss climate vote/Embeddings_Voting-main")
+
+data.participants <- read.csv("data/survey_CAM.csv")
+data.participants2 <- data.participants %>% filter(wave=="t2") %>% select(participantID, 
+                                                                          age, gender, education, 
+                                                                          partyIdentification, climate_concern, media_engagement )
+
+data.participants2 <- merge(data.participants2, matchids2,  by.x= c("participantID"), by.y="participantID.wave1")
+
+energyact_fin_participants<- merge(energyact_fin_summary, data.participants2, by.x= c("participantID") , by.y="participantID.wave2")
+
+```
+
+
+```{r}
+ 
+model.cost <- lmer(prop.cost ~ intendedVote  + valence +
+                    gender + age + education + 
+                     (1|participantID) ,
+                   data=energyact_fin_participants)
+
+tab_model(model.cost)
+```
+
+
+
+```{r}
+#Wilcoxon sum rank test to check if econ and env are significantly different between including all participants or only those with consistent votes
+# For the 'econ' category
+econ_diff <- wilcox.test(
+  x = energyact_fin_summary$cost,
+  y = energyact_fin_summary_cons$cost,
+  alternative = "two.sided"
+)
+
+# For the 'env' category
+env_diff <- wilcox.test(
+  x = energyact_fin_summary$protection,
+  y = energyact_fin_summary_cons$protection,
+  alternative = "two.sided"
+)
+
+# For the 'rest' category
+rest_diff <- wilcox.test(
+  x = energyact_fin_summary$rest,
+  y = energyact_fin_summary_cons$rest,
+  alternative = "two.sided"
+)
+
+# Print the results
+print(list(
+  econ_diff = econ_diff,
+  env_diff = env_diff,
+  rest_diff = rest_diff
+))
+
+#Not significantly different
+```
+
+```{r}
+#Plotting different medians of econ and env for consistent and all voters
+# Calculate medians for 'econ'
+medians_econ <- energyact_fin_summary %>%
+  summarise(median_econ_all = round(median(cost),3)) %>%
+  bind_rows(energyact_fin_summary_cons %>%
+              summarise(median_econ_cons = round(median(cost),3))) %>%
+  mutate(x = factor(0:1))
+
+# Calculate medians for 'env'
+medians_env <- energyact_fin_summary %>%
+  summarise(median_env_all = round(median(protection),3)) %>%
+  bind_rows(energyact_fin_summary_cons %>%
+              summarise(median_env_cons = round(median(protection),3))) %>%
+  mutate(x = factor(0:1))
+
+# Plot for the 'cost' category
+diff_cons_all_econ <- ggplot() +
+  geom_boxplot(data = energyact_fin_summary, aes(y = cost, x = factor(0), fill = "All Participants"), color = "black") +
+  geom_boxplot(data = energyact_fin_summary_cons, aes(y = cost, x = factor(1), fill = "Consistent Votes"), color = "black") +
+  geom_text(data = medians_econ, aes(x = x, y = ifelse(x == 0, median_econ_all, median_econ_cons), label = ifelse(x == 0, median_econ_all, median_econ_cons)), vjust = -0.5, color = "black") +
+  scale_fill_manual(values = c("All Participants" = "#56B4E9", "Consistent Votes" = "#E69F00")) +
+  labs(x = "", y = "Economic Ratings", title = "Economic Ratings: All Participants vs. Consistent Voters") +
+  theme_minimal() +
+  theme(legend.title = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") +
+  scale_x_discrete(labels = c("All Participants", "Consistent Votes"))
+
+#Save the cost plot
+ggsave(here::here("plot","H1_0.7","diff_cons_all_econ.png"), diff_cons_all_econ, width = 10, height = 8, dpi = 300,bg="transparent")
+
+# Plot for the 'env' category
+diff_cons_all_env <- ggplot() +
+  geom_boxplot(data = energyact_fin_summary, aes(y = protection, x = factor(0), fill = "All Participants"), color = "black") +
+  geom_boxplot(data = energyact_fin_summary_cons, aes(y = protection, x = factor(1), fill = "Consistent Votes"), color = "black") +
+  geom_text(data = medians_env, aes(x = x, y = ifelse(x == 0, median_env_all, median_env_cons), label = ifelse(x == 0, median_env_all, median_env_cons)), vjust = -0.5, color = "black") +
+  scale_fill_manual(values = c("All Participants" = "#009E73", "Consistent Votes" = "#D55E00")) +
+  labs(x = "", y = "Environmental Ratings", title = "Environmental Ratings: All Participants vs. Consistent Voters") +
+  theme_minimal() +
+  theme(legend.title = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        plot.title = element_text(hjust = 0.5),
+        legend.position = "bottom") +
+  scale_x_discrete(labels = c("All Participants", "Consistent Votes"))
+
+#Save the env plot
+ggsave(here::here("plot","H1_0.7","diff_cons_all_env.png"), diff_cons_all_env, width = 10, height = 8, dpi = 300,bg="transparent")
+```
+
+
+```{r}
+# Creating df with participants that were present in both waves with proportions per category, wave, and vote
+proportions_wave <- energyact_fin_both %>%
+  group_by(participantID, wave) %>%
+  count(category) %>%
+  ungroup() %>%
+  group_by(participantID, wave) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  mutate(proportion = n / total) %>%
+  select(participantID, wave, category, proportion)
+
+# Pivot wider to have separate columns for each category, filling missing categories with zeros
+proportions_category_separate <- proportions_wave %>%
+  pivot_wider(names_from = category, values_from = proportion, values_fill = list(proportion = 0))
+
+# Ensure joining with intendedVote to include it in the dataset
+proportions_both_vote_wave <- energyact_fin_both %>%
+  select(participantID, wave, intendedVote) %>%
+  distinct() %>%
+  left_join(proportions_category_separate, by = c("participantID", "wave"))
+```
+
+```{r}
+# Calculate mean and SD by wave
+summary_by_wave <- proportions_both_vote_wave %>%
+  group_by(wave) %>%
+  summarise(across(c(cost, protection, rest), list(mean = ~mean(., na.rm = TRUE), 
+                                            sd = ~sd(., na.rm = TRUE))))
+
+print(summary_by_wave)
+```
+
+```{r}
+# Calculate mean and SD by wave and intendedVote
+summary_by_wave_vote <- proportions_both_vote_wave %>%
+  group_by(wave, intendedVote) %>%
+  summarise(across(c(cost, protection, rest), list(mean = ~mean(., na.rm = TRUE), 
+                                            sd = ~sd(., na.rm = TRUE))))
+
+print(summary_by_wave_vote)
+```
+
+```{r}
+#Calculate how many participants changed their vote from t1 to t2
+# Assuming proportions_both_vote_wave is your starting dataframe
+# Filter for unique participantID-wave combinations
+votes_comparison <- proportions_both_vote_wave %>%
+  select(participantID, wave, intendedVote) %>%
+  distinct() %>%
+  pivot_wider(names_from = wave, values_from = intendedVote, names_prefix = "vote_")
+
+# Ensure we're only considering participants who have votes for both t1 and t2
+votes_comparison <- votes_comparison %>%
+  filter(!is.na(vote_t1) & !is.na(vote_t2))
+
+# Classify vote changes
+vote_changes_summary <- votes_comparison %>%
+  mutate(change_status = case_when(
+    vote_t1 == 0 & vote_t2 == 1 ~ "0 to 1",
+    vote_t1 == 1 & vote_t2 == 0 ~ "1 to 0",
+    vote_t1 == 0 & vote_t2 == 0 ~ "Stable 0",
+    vote_t1 == 1 & vote_t2 == 1 ~ "Stable 1"
+  )) %>%
+  count(change_status) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+# Extend the vote_changes_summary to include broader categories
+total_vote_changes_summary <- votes_comparison %>%
+  mutate(changed = if_else(vote_t1 == vote_t2, "Not Changed", "Changed")) %>%
+  count(changed) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+print(total_vote_changes_summary)
+
+print(vote_changes_summary)
+```
+
+```{r}
+# First, standardize the column names
+vote_changes_summary <- vote_changes_summary %>%
+  rename(change_status = change_status) %>%
+  mutate(Category = "Specific Changes")
+
+total_vote_changes_summary <- total_vote_changes_summary %>%
+  rename(change_status = changed) %>%
+  mutate(Category = "Overall Change")
+
+# Combine the data frames with standardized column names
+combined_summary <- bind_rows(vote_changes_summary, total_vote_changes_summary)
+
+
+vote_changes_dis <- ggplot(combined_summary, aes(x = reorder(change_status, -percentage), y = percentage, fill = Category)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7)) +
+  scale_fill_manual(values = c("Specific Changes" = "#56B4E9", "Overall Change" = "#E69F00")) +
+  geom_text(aes(label = sprintf("%.1f%%", percentage), 
+                y = percentage + 1), # Adjust y for label position above bars
+            position = position_dodge(width = 0.7), 
+            vjust = 0, # Vertical adjustment to place text above bars
+            color = "black", size = 3.5) + # Text color and size
+  labs(x = "Vote Change", y = "Percentage (%)", title = "Distribution of Vote Changes") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.title = element_blank(),
+        legend.position = "bottom")
+
+ggsave(here::here("plot","H1_0.7","vote_changes_dis.png"),vote_changes_dis, width = 10, height = 8, dpi = 300,bg="transparent")
+```
+
+
+```{r}
+#Plots of mean & standard error across both time points by vote
+
+# Create a function to generate color-blind-friendly plots for econ and env by intendedVote
+# Function to calculate mean and standard error
+mean_se <- function(x) {
+  se <- sd(x) / sqrt(length(x))
+  return(c(y = mean(x), ymin = mean(x) - se, ymax = mean(x) + se))
+}
+
+# Function to generate color-blind-friendly plots for econ and env by intendedVote
+plot_by_intendedVote <- function(data, variable_name) {
+  p <- ggplot(data, aes(x = factor(intendedVote), y = !!as.symbol(variable_name), fill = factor(intendedVote))) +
+    stat_summary(fun = "mean", geom = "bar", position = position_dodge(), color = "black") +
+    stat_summary(fun.data = mean_se, geom = "errorbar", position = position_dodge(0.9), width = 0.25) +
+    scale_fill_brewer(palette = "Set2", name = "Intended Vote", labels = c("0" = "No", "1" = "Yes")) +
+    geom_text(
+      aes(label = sprintf("%.2f (%.2f)", ..y.., ..ymax.. - ..y..)),
+      stat = "summary",
+      fun.data = mean_se,
+      vjust = -4,
+      position = position_dodge(0.9)
+    ) +
+    expand_limits(y = 0) +
+    labs(x = "Intended Vote", y = "Mean Value", title = paste("Mean and SE of", variable_name, "by Intended Vote")) +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "bottom",
+          axis.title.x = element_text(size = 12, face = "bold"),
+          axis.title.y = element_text(size = 12, face = "bold"),
+          plot.title = element_text(size = 14, face = "bold", hjust = 0.5),
+          legend.title = element_text(size = 12))
+  return(p)
+}
+
+
+# Generate plots and save them
+# Plot for econ - all participants
+mean_econ_vote_all <- plot_by_intendedVote(energyact_fin_summary, "econ")
+ggsave(here::here("plot","H1_0.7","mean_econ_vote_all.png"), mean_econ_vote_all, width = 10, height = 8, dpi = 300,bg="transparent")
+
+# Plot for env - all participants
+mean_env_vote_all <- plot_by_intendedVote(energyact_fin_summary, "env")
+ggsave(here::here("plot","H1_0.7","mean_env_vote_all.png"), mean_env_vote_all, width = 10, height = 8, dpi = 300,bg="transparent")
+
+# Plot for econ - consistent participants
+mean_econ_vote_cons <- plot_by_intendedVote(energyact_fin_summary_cons, "econ")
+ggsave(here::here("plot","H1_0.7","mean_econ_vote_cons.png"), mean_econ_vote_cons, width = 10, height = 8, dpi = 300,bg="transparent")
+
+# Plot for env - consistent participants
+mean_env_votet_cons <- plot_by_intendedVote(energyact_fin_summary_cons, "env")
+ggsave(here::here("plot","H1_0.7","mean_env_vote_cons.png"), mean_env_votet_cons, width = 10, height = 8, dpi = 300,bg="transparent")
+```
+
+```{r}
+# Plotting mean & se by wave for all participants
+agg_data <- proportions_both_vote_wave %>%
+  group_by(wave) %>%
+  summarise(mean_econ = mean(econ), se_econ = sd(econ) / sqrt(n())) %>%
+  ungroup()
+
+# Plot for Econ
+mean_econ_wave_all <- ggplot(proportions_both_vote_wave, aes(x = wave, fill = wave)) +
+  geom_bar(aes(y = econ, group = wave), position = position_dodge(width = 0.7), stat = "summary", fun = "mean") +
+  geom_errorbar(aes(y = econ, group = wave, ymin = econ - sd(econ), ymax = econ + sd(econ)), position = position_dodge(width = 0.7), stat = "summary", fun.data = mean_se) +
+  geom_text(data = agg_data, aes(x = wave, y = mean_econ, label = sprintf("%.2f (%.2f)", mean_econ, se_econ)), position = position_dodge(width = 0.7), vjust = -4) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
+  labs(x = "Wave", y = "Econ", title = "Mean Econ by Wave with SE") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Save the Econ plot
+ggsave(here::here("plot","H1_0.7","mean_econ_wave_all.png"), mean_econ_wave_all, width = 10, height = 8, dpi = 300)
+
+# Function to calculate mean and standard error
+mean_se <- function(x) {
+  se <- sd(x) / sqrt(length(x))
+  return(c(y = mean(x), ymin = mean(x) - se, ymax = mean(x) + se))
+}
+
+# Compute the aggregated data for 'env'
+agg_data_env <- proportions_both_vote_wave %>%
+  group_by(wave) %>%
+  summarise(mean_env = mean(env), se_env = sd(env) / sqrt(n()), .groups = 'drop')
+
+# Plot for Env
+mean_env_wave_all <- ggplot(proportions_both_vote_wave, aes(x = wave, fill = wave)) +
+  geom_bar(aes(y = env, group = wave), position = position_dodge(width = 0.7), stat = "summary", fun = "mean") +
+  geom_errorbar(aes(y = env, group = wave, ymin = env - sd(env), ymax = env + sd(env)), position = position_dodge(width = 0.7), stat = "summary", fun.data = mean_se) +
+  geom_text(data = agg_data_env, aes(x = wave, y = mean_env, label = sprintf("%.2f (%.2f)", mean_env, se_env)), position = position_dodge(width = 0.7), vjust = -4) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
+  labs(x = "Wave", y = "Env", title = "Mean Env by Wave with SE") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Save the Env plot to the 'plot' directory with the name 'env_plot.png'
+ggsave(here::here("plot","H1_0.7","mean_env_wave_all.png"), mean_env_wave_all, width = 10, height = 8, dpi = 300)
+```
+
+```{r}
+# Plotting mean & se by wave for Consistent participants
+agg_data_cons <- proportions_both_vote_wave_cons %>%
+  group_by(wave) %>%
+  summarise(mean_econ = mean(econ), se_econ = sd(econ) / sqrt(n())) %>%
+  ungroup()
+
+# Plot for Econ
+mean_econ_wave_cons <- ggplot(proportions_both_vote_wave_cons, aes(x = wave, fill = wave)) +
+  geom_bar(aes(y = econ, group = wave), position = position_dodge(width = 0.7), stat = "summary", fun = "mean") +
+  geom_errorbar(aes(y = econ, group = wave, ymin = econ - sd(econ), ymax = econ + sd(econ)), position = position_dodge(width = 0.7), stat = "summary", fun.data = mean_se) +
+  geom_text(data = agg_data_cons, aes(x = wave, y = mean_econ, label = sprintf("%.2f (%.2f)", mean_econ, se_econ)), position = position_dodge(width = 0.7), vjust = -4) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
+  labs(x = "Wave", y = "Econ", title = "Mean Econ by Wave with SE for Consistent Participants") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Save the Econ plot
+ggsave(here::here("plot","H1_0.7","mean_econ_wave_cons.png"), mean_econ_wave_cons, width = 10, height = 8, dpi = 300)
+
+# Function to calculate mean and standard error
+mean_se <- function(x) {
+  se <- sd(x) / sqrt(length(x))
+  return(c(y = mean(x), ymin = mean(x) - se, ymax = mean(x) + se))
+}
+
+# Compute the aggregated data for 'env'
+agg_data_env_cons <- proportions_both_vote_wave_cons %>%
+  group_by(wave) %>%
+  summarise(mean_env = mean(env), se_env = sd(env) / sqrt(n()), .groups = 'drop')
+
+# Plot for Env
+mean_env_wave_cons <- ggplot(proportions_both_vote_wave_cons, aes(x = wave, fill = wave)) +
+  geom_bar(aes(y = env, group = wave), position = position_dodge(width = 0.7), stat = "summary", fun = "mean") +
+  geom_errorbar(aes(y = env, group = wave, ymin = env - sd(env), ymax = env + sd(env)), position = position_dodge(width = 0.7), stat = "summary", fun.data = mean_se) +
+  geom_text(data = agg_data_env_cons, aes(x = wave, y = mean_env, label = sprintf("%.2f (%.2f)", mean_env, se_env)), position = position_dodge(width = 0.7), vjust = -4) +
+  scale_fill_brewer(palette = "Set2") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
+  labs(x = "Wave", y = "Env", title = "Mean Env by Wave with SE for Consistent Participants") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Save the Env plot to the 'plot' directory with the name 'env_plot.png'
+ggsave(here::here("plot","H1_0.7","mean_env_wave_cons.png"), mean_env_wave_cons, width = 10, height = 8, dpi = 300)
+```
+
+
+```{r}
+#Plotting mean and SE by wave & vote for all participants
+
+# Define the mean_se function if it's not already defined
+mean_se <- function(x) {
+  se <- sd(x) / sqrt(length(x))
+  return(c(y = mean(x), ymin = mean(x) - se, ymax = mean(x) + se))
+}
+
+# Calculate the mean and standard error for env by intendedVote and wave
+agg_data_env <- proportions_both_vote_wave %>%
+  group_by(wave, intendedVote) %>%
+  summarise(mean_env = mean(env), se_env = sd(env) / sqrt(n()), .groups = 'drop')
+
+# Plot for env with mean and SE
+mean_env_wave_vote_all <- ggplot(proportions_both_vote_wave, aes(x = factor(intendedVote), y = env, fill = factor(intendedVote))) +
+  stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.8), width = 0.7) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", position = position_dodge(width = 0.8), width = 0.25) +
+  geom_text(data = agg_data_env, aes(x = factor(intendedVote), y = mean_env + se_env, label = sprintf("%.2f (%.2f)", mean_env, se_env)), 
+            position = position_dodge(width = 0.8), vjust = -0.5, check_overlap = TRUE) +
+  facet_wrap(~wave) +
+  scale_fill_brewer(palette = "Set2", name = "Intended Vote", labels = c("0" = "No", "1" = "Yes")) +
+  labs(x = "Intended Vote", y = "Mean Env", title = "Mean and SE of Env by Intended Vote, Faceted by Wave") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        axis.title.x = element_text(size = 12, face = "bold"),
+        axis.title.y = element_text(size = 12, face = "bold"),
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+
+ggsave(here::here("plot","H1_0.7","mean_env_wave_vote_all.png"), mean_env_wave_vote_all, width = 10, height = 8, dpi = 300)
+
+# Calculate the mean and standard error for econ by intendedVote and wave
+agg_data_econ <- proportions_both_vote_wave %>%
+  group_by(wave, intendedVote) %>%
+  summarise(mean_econ = mean(econ), se_econ = sd(econ) / sqrt(n()), .groups = 'drop')
+
+# Plot for econ with mean and SE
+mean_econ_wave_vote_all <- ggplot(proportions_both_vote_wave, aes(x = factor(intendedVote), y = econ, fill = factor(intendedVote))) +
+  stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.8), width = 0.7) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", position = position_dodge(width = 0.8), width = 0.25) +
+  geom_text(data = agg_data_econ, aes(x = factor(intendedVote), y = mean_econ + se_econ, label = sprintf("%.2f (%.2f)", mean_econ, se_econ)), 
+            position = position_dodge(width = 0.8), vjust = -0.5, check_overlap = TRUE) +
+  facet_wrap(~wave) +
+  scale_fill_brewer(palette = "Set2", name = "Intended Vote", labels = c("0" = "No", "1" = "Yes")) +
+  labs(x = "Intended Vote", y = "Mean Econ", title = "Mean and SE of Econ by Intended Vote, Faceted by Wave") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        axis.title.x = element_text(size = 12, face = "bold"),
+        axis.title.y = element_text(size = 12, face = "bold"),
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+
+ggsave(here::here("plot","H1_0.7","mean_econ_wave_vote_all.png"), mean_econ_wave_vote_all, width = 10, height = 8, dpi = 300)
+```
+
+```{r}
+#Plotting mean and SE by wave & vote for all participants
+
+# Define the mean_se function if it's not already defined
+mean_se <- function(x) {
+  se <- sd(x) / sqrt(length(x))
+  return(c(y = mean(x), ymin = mean(x) - se, ymax = mean(x) + se))
+}
+
+# Calculate the mean and standard error for env by intendedVote and wave
+agg_data_env_cons <- proportions_both_vote_wave_cons %>%
+  group_by(wave, intendedVote) %>%
+  summarise(mean_env = mean(env), se_env = sd(env) / sqrt(n()), .groups = 'drop')
+
+# Plot for env with mean and SE
+mean_env_wave_vote_cons <- ggplot(proportions_both_vote_wave_cons, aes(x = factor(intendedVote), y = env, fill = factor(intendedVote))) +
+  stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.8), width = 0.7) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", position = position_dodge(width = 0.8), width = 0.25) +
+  geom_text(data = agg_data_env_cons, aes(x = factor(intendedVote), y = mean_env + se_env, label = sprintf("%.2f (%.2f)", mean_env, se_env)), 
+            position = position_dodge(width = 0.8), vjust = -0.5, check_overlap = TRUE) +
+  facet_wrap(~wave) +
+  scale_fill_brewer(palette = "Set2", name = "Intended Vote", labels = c("0" = "No", "1" = "Yes")) +
+  labs(x = "Intended Vote", y = "Mean Env", title = "Mean and SE of Env by Intended Vote, Faceted by Wave for Consistent Participants") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        axis.title.x = element_text(size = 12, face = "bold"),
+        axis.title.y = element_text(size = 12, face = "bold"),
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+
+ggsave(here::here("plot","H1_0.7","mean_env_wave_vote_cons.png"), mean_env_wave_vote_cons, width = 10, height = 8, dpi = 300)
+
+# Calculate the mean and standard error for econ by intendedVote and wave
+agg_data_econ_cons <- proportions_both_vote_wave_cons %>%
+  group_by(wave, intendedVote) %>%
+  summarise(mean_econ = mean(econ), se_econ = sd(econ) / sqrt(n()), .groups = 'drop')
+
+# Plot for econ with mean and SE
+mean_econ_wave_vote_cons <- ggplot(proportions_both_vote_wave_cons, aes(x = factor(intendedVote), y = econ, fill = factor(intendedVote))) +
+  stat_summary(fun = mean, geom = "bar", position = position_dodge(width = 0.8), width = 0.7) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", position = position_dodge(width = 0.8), width = 0.25) +
+  geom_text(data = agg_data_econ_cons, aes(x = factor(intendedVote), y = mean_econ + se_econ, label = sprintf("%.2f (%.2f)", mean_econ, se_econ)), 
+            position = position_dodge(width = 0.8), vjust = -0.5, check_overlap = TRUE) +
+  facet_wrap(~wave) +
+  scale_fill_brewer(palette = "Set2", name = "Intended Vote", labels = c("0" = "No", "1" = "Yes")) +
+  labs(x = "Intended Vote", y = "Mean Econ", title = "Mean and SE of Econ by Intended Vote, Faceted by Wave for Consistent Participants") +
+  theme_minimal() +
+  theme(legend.position = "bottom",
+        axis.title.x = element_text(size = 12, face = "bold"),
+        axis.title.y = element_text(size = 12, face = "bold"),
+        plot.title = element_text(size = 14, face = "bold", hjust = 0.5))
+
+ggsave(here::here("plot","H1_0.7","mean_econ_wave_vote_cons.png"), mean_econ_wave_vote_cons, width = 10, height = 8, dpi = 300)
+```
+
+```{r}
+# Checking normality for the 'econ' proportion
+shapiro.test(proportions_both_vote_wave$econ[proportions_both_vote_wave$intendedVote == 0])
+shapiro.test(proportions_both_vote_wave$econ[proportions_both_vote_wave$intendedVote == 1])
+
+shapiro.test(proportions_both_vote_wave$env[proportions_both_vote_wave$intendedVote == 0])
+shapiro.test(proportions_both_vote_wave$env[proportions_both_vote_wave$intendedVote == 1])
+```
+
+```{r}
+# Wilcoxon signed-rank test for econ overall
+econ_test_overall <- wilcox.test(proportions_both_vote_wave$econ[proportions_both_vote_wave$wave=="t1"], proportions_both_vote_wave$econ[proportions_both_vote_wave$wave=="t2"], paired = TRUE)
+
+env_test_overall <- wilcox.test(proportions_both_vote_wave$env[proportions_both_vote_wave$wave=="t1"], proportions_both_vote_wave$env[proportions_both_vote_wave$wave=="t2"], paired = TRUE)
+
+rest_test_overall <- wilcox.test(proportions_both_vote_wave$rest[proportions_both_vote_wave$wave=="t1"], proportions_both_vote_wave$rest[proportions_both_vote_wave$wave=="t2"], paired = TRUE)
+
+print(list(
+  econ_test_overall = econ_test_overall,
+  env_test_overall = env_test_overall,
+  rest_test_overall = rest_test_overall
+))
+
+#Econ significantly changes across voters over time
+
+wilcox_effsize(proportions_both_vote_wave, econ~wave,paired=T)
+#r=0.17
+```
+
+```{r}
+#Boxplots & paired data of t1 & t2 across voters
+# Ensure proportions_both_vote_wave is in the correct format
+proportions_long <- proportions_both_vote_wave %>%
+  pivot_longer(cols = c(env, econ), names_to = "measure", values_to = "value") %>%
+  mutate(id_wave = interaction(participantID, wave))
+
+# Plot for env
+ggplot(filter(proportions_long, measure == "env"), aes(x = wave, y = value, group = participantID)) + 
+  geom_boxplot(aes(group = wave), fill = c("#56B4E9", "#E69F00"), alpha = 0.5, outlier.shape = NA) +
+  geom_point(aes(color = wave), position = position_dodge(width = 0.5)) +
+  geom_line(aes(group = participantID), alpha = 0.5) +
+  labs(title = "Changes in Env from T1 to T2", y = "Env Value", x = "") +
+  scale_color_manual(values = c("t1" = "#56B4E9", "t2" = "#E69F00")) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, vjust = 0.5))
+
+# Plot for econ
+ggplot(filter(proportions_long, measure == "econ"), aes(x = wave, y = value, group = participantID)) + 
+  geom_boxplot(aes(group = wave), fill = c("#56B4E9", "#E69F00"), alpha = 0.5, outlier.shape = NA) +
+  geom_point(aes(color = wave), position = position_dodge(width = 0.5)) +
+  geom_line(aes(group = participantID), alpha = 0.5) +
+  labs(title = "Changes in Econ from T1 to T2", y = "Econ Value", x = "") +
+  scale_color_manual(values = c("t1" = "#56B4E9", "t2" = "#E69F00")) +
+  theme_minimal() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(angle = 45, vjust = 0.5))
+```
+```{r}
+#Boxplot of t1 and t2 across voters
+# Assuming proportions_both_vote_wave is already prepared
+data_long <- proportions_both_vote_wave %>%
+  pivot_longer(cols = c(env, econ), names_to = "variable", values_to = "value") %>%
+  filter(wave %in% c("t1", "t2"))
+
+# Calculate medians
+medians <- data_long %>%
+  group_by(wave, variable) %>%
+  summarise(median_value = median(value), .groups = 'drop')
+
+# Plot for 'env' including medians
+paired_wilcox_across_env <- ggplot(filter(data_long, variable == "env"), aes(x = wave, y = value)) + 
+  geom_boxplot(fill = c("#56B4E9", "#E69F00"), alpha = 0.5, outlier.shape = NA) +
+  geom_text(data = filter(medians, variable == "env"), aes(x = wave, y = median_value, label = round(median_value, 2)), vjust = -0.5) +
+  labs(title = "Env across T1 and T2", x = "Time Point", y = "Env Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5),
+        plot.title = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 12, face = "bold"))
+
+ggsave(here::here("plot","H1_0.7","paired_wilcox_across_env.png"), paired_wilcox_across_env, width = 10, height = 8, dpi = 300)
+
+
+# Plot for 'econ' including medians
+paired_wilcox_across_econ <- ggplot(filter(data_long, variable == "econ"), aes(x = wave, y = value)) + 
+  geom_boxplot(fill = c("#56B4E9", "#E69F00"), alpha = 0.5, outlier.shape = NA) +
+  geom_text(data = filter(medians, variable == "econ"), aes(x = wave, y = median_value, label = round(median_value, 2)), vjust = -0.5) +
+  labs(title = "Econ across T1 and T2", x = "Time Point", y = "Econ Value") +
+  geom_text(aes(x = 1.5, y = Inf, label = "Significant change (r = 0.17)"), vjust = 2, hjust = 0.5) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 0.5),
+        plot.title = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 12, face = "bold"))
+
+ggsave(here::here("plot","H1_0.7","paired_wilcox_across_econ.png"), paired_wilcox_across_econ, width = 10, height = 8, dpi = 300)
+```
+
+
+```{r}
+#For wilcoxon signed-rank test, there have to be equal number of values in t1 and t2 for separate votes, so we can only include participants that did not change their vote.
+
+#So these results are only for participants that did not change vote!
+
+# Creating df with consistent participants that were present in both waves with proportions per category, wave, and vote
+proportions_wave_cons <- energyact_fin_consistent %>%
+  group_by(participantID, wave) %>%
+  count(category) %>%
+  ungroup() %>%
+  group_by(participantID, wave) %>%
+  mutate(total = sum(n)) %>%
+  ungroup() %>%
+  mutate(proportion = n / total) %>%
+  select(participantID, wave, category, proportion)
+
+# Pivot wider to have separate columns for each category, filling missing categories with zeros
+proportions_category_separate_cons <- proportions_wave_cons %>%
+  pivot_wider(names_from = category, values_from = proportion, values_fill = list(proportion = 0))
+
+# Ensure joining with intendedVote to include it in the dataset
+proportions_both_vote_wave_cons <- energyact_fin_consistent %>%
+  select(participantID, wave, intendedVote) %>%
+  distinct() %>%
+  left_join(proportions_category_separate_cons, by = c("participantID", "wave"))
+
+# Wilcoxon signed-rank test separate for yes and no voters
+data_vote_0 <- filter(proportions_both_vote_wave_cons, intendedVote == 0)
+data_vote_1 <- filter(proportions_both_vote_wave_cons, intendedVote == 1)
+
+#Intendedvote=0
+env_test_0 <- wilcox.test(data_vote_0$env[data_vote_0$wave=="t1"], data_vote_0$env[data_vote_0$wave=="t2"], paired = TRUE)
+econ_test_0 <- wilcox.test(data_vote_0$econ[data_vote_0$wave=="t1"], data_vote_0$econ[data_vote_0$wave=="t2"], paired = TRUE)
+
+# IntendedVote = 1
+env_test_1 <- wilcox.test(data_vote_1$env[data_vote_1$wave=="t1"], data_vote_1$env[data_vote_1$wave=="t2"], paired = TRUE)
+econ_test_1 <- wilcox.test(data_vote_1$econ[data_vote_1$wave=="t1"], data_vote_1$econ[data_vote_1$wave=="t2"], paired = TRUE)
+
+print(list(
+  env_test_0 = env_test_0,
+  econ_test_0 = econ_test_0,
+  env_test_1 = env_test_1,
+  econ_test_1 = econ_test_1
+))
+
+#env & econ for no voters only significant at 0.1 level
+```
+
+```{r}
+# Transform data to long format for easier plotting
+data_long <- proportions_both_vote_wave_cons %>%
+  pivot_longer(cols = c(env, econ), names_to = "variable", values_to = "value") %>%
+  mutate(wave_variable = interaction(wave, variable, sep = "_"))
+
+# Calculate medians
+medians <- data_long %>%
+  group_by(intendedVote, wave, variable, wave_variable) %>%
+  summarise(median_value = median(value), .groups = 'drop') %>%
+  mutate(median_label = round(median_value, 2))
+
+# Plot for 'env' for no voters (intendedVote == 0) including medians
+paired_wilcox_no_env <- ggplot(filter(data_long, intendedVote == 0 & variable == "env"), aes(x = wave_variable, y = value)) + 
+  geom_boxplot(fill = c("#56B4E9", "#E69F00"), alpha = 0.7) +
+  geom_text(data = filter(medians, intendedVote == 0 & variable == "env"), 
+            aes(x = wave_variable, y = median_value, label = median_label), vjust = -0.5) +
+  labs(title = "Env for No Voters (T1 vs T2)", x = "", y = "Env Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+
+ggsave(here::here("plot","H1_0.7","paired_wilcox_no_env.png"), paired_wilcox_no_env, width = 10, height = 8, dpi = 300)
+
+# Plot for 'env' for yes voters (intendedVote == 1) including medians
+paired_wilcox_yes_env <- ggplot(filter(data_long, intendedVote == 1 & variable == "env"), aes(x = wave_variable, y = value)) + 
+  geom_boxplot(fill = c("#56B4E9", "#E69F00"), alpha = 0.7) +
+  geom_text(data = filter(medians, intendedVote == 1 & variable == "env"), 
+            aes(x = wave_variable, y = median_value, label = median_label), vjust = -0.5) +
+  labs(title = "Env for Yes Voters (T1 vs T2)", x = "", y = "Env Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
+
+ggsave(here::here("plot","H1_0.7","paired_wilcox_yes_env.png"), paired_wilcox_yes_env, width = 10, height = 8, dpi = 300)
+
+# Plot for 'econ' for no voters (intendedVote == 0) including medians
+paired_wilcox_no_econ <- ggplot(filter(data_long, intendedVote == 0 & variable == "econ"), aes(x = wave_variable, y = value)) + 
+  geom_boxplot(fill = c("#56B4E9", "#E69F00"), alpha = 0.7) +
+  geom_text(data = filter(medians, intendedVote == 0 & variable == "econ"), 
+            aes(x = wave_variable, y = median_value, label = median_label), vjust = -0.5) +
+  labs(title = "Econ for No Voters (T1 vs T2)", x = "", y = "Econ Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+ggsave(here::here("plot","H1_0.7","paired_wilcox_no_econ.png"), paired_wilcox_no_econ, width = 10, height = 8, dpi = 300)
+
+# Plot for 'econ' for yes voters (intendedVote == 1) including medians
+paired_wilcox_yes_econ <- ggplot(filter(data_long, intendedVote == 1 & variable == "econ"), aes(x = wave_variable, y = value)) + 
+  geom_boxplot(fill = c("#56B4E9", "#E69F00"), alpha = 0.7) +
+  geom_text(data = filter(medians, intendedVote == 1 & variable == "econ"), 
+            aes(x = wave_variable, y = median_value, label = median_label), vjust = -0.5) +
+  labs(title = "Econ for Yes Voters (T1 vs T2)", x = "", y = "Econ Value") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+ggsave(here::here("plot","H1_0.7","paired_wilcox_yes_econ.png"), paired_wilcox_yes_econ, width = 10, height = 8, dpi = 300)
+```
+
+
+```{r}
+#Differences between-subject (vote) across time and for t1 & t2
+wilcox_test(proportions_both_vote_wave, econ~intendedVote)
+wilcox_test(proportions_both_vote_wave, env~intendedVote) #significant
+
+#Filter waves
+data_t1_all <- filter(proportions_both_vote_wave, wave == "t1")
+data_t2_all <- filter(proportions_both_vote_wave, wave == "t2")
+
+# Wilcoxon Rank Sum Test for t1
+wilcox_test(data_t1_all, econ~intendedVote)
+wilcox_test(data_t1_all, env~intendedVote)
+
+# Wilcoxon Rank Sum Test for t2
+wilcox_test(data_t2_all, econ~intendedVote)
+wilcox_test(data_t2_all, env~intendedVote) #significant
+
+#No significant differences between voters in t1
+#significant differences in env between voters in t2
+
+#Effect sizes
+wilcox_effsize(proportions_both_vote_wave, env~intendedVote) #r=0.15
+wilcox_effsize(data_t2_all, env~intendedVote) #r=0.2
+```
+
+```{r}
+# Calculate median values for 'env' across all time points, T1, and T2
+medians_env_all <- proportions_both_vote_wave %>%
+  group_by(intendedVote) %>%
+  summarise(median_env = round(median(env), 2), .groups = 'drop')
+
+medians_env_t1 <- filter(proportions_both_vote_wave, wave == "t1") %>%
+  group_by(intendedVote) %>%
+  summarise(median_env = round(median(env), 2), .groups = 'drop')
+
+medians_env_t2 <- filter(proportions_both_vote_wave, wave == "t2") %>%
+  group_by(intendedVote) %>%
+  summarise(median_env = round(median(env), 2), .groups = 'drop')
+
+# Define a custom color palette
+custom_colors <- c("#56B4E9", "#E69F00")
+
+# Plot for 'env' across time points including medians
+between_wilcox_env_across <- ggplot(proportions_both_vote_wave, aes(x = factor(intendedVote), y = env, fill = factor(intendedVote))) + 
+  geom_boxplot() +
+  geom_text(data = medians_env_all, aes(x = factor(intendedVote), y = median_env, label = median_env), vjust = -0.5, color = "black") +
+  labs(title = "Env Across Time Points for Yes and No Voters", x = "Intended Vote", y = "Env Value") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  scale_fill_manual(values = custom_colors) +
+  geom_text(aes(x = 1.5, y = max(env, na.rm = TRUE), label = "Significant difference for env (r = 0.15)"), vjust = 2, hjust = 0.5)
+
+ggsave(here::here("plot","H1_0.7","between_wilcox_env_across.png"), between_wilcox_env_across, width = 10, height = 8, dpi = 300)
+
+# Plot for 'env' at T1 including medians
+between_wilcox_env_t1 <- ggplot(filter(proportions_both_vote_wave, wave == "t1"), aes(x = factor(intendedVote), y = env, fill = factor(intendedVote))) + 
+  geom_boxplot() +
+  geom_text(data = medians_env_t1, aes(x = factor(intendedVote), y = median_env, label = median_env), vjust = -0.5, color = "black") +
+  labs(title = "Env at T1 for Yes and No Voters", x = "Intended Vote", y = "Env Value") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  scale_fill_manual(values = custom_colors)
+
+ggsave(here::here("plot","H1_0.7","between_wilcox_env_t1.png"), between_wilcox_env_t1, width = 10, height = 8, dpi = 300)
+
+# Plot for 'env' at T2 including medians and noting significant difference
+between_wilcox_env_t2 <- ggplot(filter(proportions_both_vote_wave, wave == "t2"), aes(x = factor(intendedVote), y = env, fill = factor(intendedVote))) + 
+  geom_boxplot() +
+  geom_text(data = medians_env_t2, aes(x = factor(intendedVote), y = median_env, label = median_env), vjust = -0.5, color = "black") +
+  labs(title = "Env at T2 for Yes and No Voters", x = "Intended Vote", y = "Env Value") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  scale_fill_manual(values = custom_colors) +
+  geom_text(aes(x = 1.5, y = max(env, na.rm = TRUE), label = "Significant difference for env at T2 (r = 0.2)"), vjust = 2, hjust = 0.5)
+
+ggsave(here::here("plot","H1_0.7","between_wilcox_env_t2.png"), between_wilcox_env_t2, width = 10, height = 8, dpi = 300)
+
+```
+
+```{r}
+# Calculate median values for 'econ' across all time points, T1, and T2
+medians_econ_all <- proportions_both_vote_wave %>%
+  group_by(intendedVote) %>%
+  summarise(median_econ = round(median(econ), 2), .groups = 'drop')
+
+medians_econ_t1 <- filter(proportions_both_vote_wave, wave == "t1") %>%
+  group_by(intendedVote) %>%
+  summarise(median_econ = round(median(econ), 2), .groups = 'drop')
+
+medians_econ_t2 <- filter(proportions_both_vote_wave, wave == "t2") %>%
+  group_by(intendedVote) %>%
+  summarise(median_econ = round(median(econ), 2), .groups = 'drop')
+
+# Define custom color palette
+custom_colors <- c("#56B4E9", "#E69F00")
+
+# Plot for 'econ' across time points including medians
+between_wilcox_econ_across <- ggplot(proportions_both_vote_wave, aes(x = factor(intendedVote), y = econ, fill = factor(intendedVote))) + 
+  geom_boxplot() +
+  geom_text(data = medians_econ_all, aes(x = factor(intendedVote), y = median_econ, label = median_econ), vjust = -0.5, color = "black") +
+  labs(title = "Econ Across Time Points for Yes and No Voters", x = "Intended Vote", y = "Econ Value") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  scale_fill_manual(values = custom_colors)
+
+ggsave(here::here("plot","H1_0.7","between_wilcox_econ_across.png"), between_wilcox_econ_across, width = 10, height = 8, dpi = 300)
+
+
+# Plot for 'econ' at T1 including medians
+between_wilcox_econ_t1 <- ggplot(filter(proportions_both_vote_wave, wave == "t1"), aes(x = factor(intendedVote), y = econ, fill = factor(intendedVote))) + 
+  geom_boxplot() +
+  geom_text(data = medians_econ_t1, aes(x = factor(intendedVote), y = median_econ, label = median_econ), vjust = -0.5, color = "black") +
+  labs(title = "Econ at T1 for Yes and No Voters", x = "Intended Vote", y = "Econ Value") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  scale_fill_manual(values = custom_colors)
+
+ggsave(here::here("plot","H1_0.7","between_wilcox_econ_t1.png"), between_wilcox_econ_t1, width = 10, height = 8, dpi = 300)
+
+# Plot for 'econ' at T2 including medians
+between_wilcox_econ_t2 <- ggplot(filter(proportions_both_vote_wave, wave == "t2"), aes(x = factor(intendedVote), y = econ, fill = factor(intendedVote))) + 
+  geom_boxplot() +
+  geom_text(data = medians_econ_t2, aes(x = factor(intendedVote), y = median_econ, label = median_econ), vjust = -0.5, color = "black") +
+  labs(title = "Econ at T2 for Yes and No Voters", x = "Intended Vote", y = "Econ Value") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  scale_fill_manual(values = custom_colors)
+
+ggsave(here::here("plot","H1_0.7","between_wilcox_econ_t2.png"), between_wilcox_econ_t2, width = 10, height = 8, dpi = 300)
+``` 
+
+```{r}
+#logistic regression with mean across waves with participants that are present in both waves
+# Assuming energyact_fin_summary contains the mean proportions and intendedVote
+#Including participants that changed vote
+
+# Logistic regression
+model_all <- glmer(intendedVote ~ econ + env + (1 | participantID),
+                   family = binomial, data = energyact_fin_summary)
+
+# Display the summary of the adjusted model
+summary(model_all)
+#Odds Ratio Env
+# Extract fixed effects coefficients directly from the model object
+fixed_effects <- coef(model_all)$participantID[["(Intercept)"]]
+
+# Extract the coefficient for env_mean
+env_coef <- fixef(model_all)["env"]
+
+# Calculate the odds ratio for env_mean
+env_or <- exp(env_coef)
+
+# Print the odds ratio
+print(paste("Odds ratio of Env =", env_or))
+per_word_or <- env_or^0.125
+print(paste("Odds ratio of Env per word change (1/8) =", per_word_or))
+
+#Env significantly predicts intendedVote
+#Odds ratio of Env = 7.59
+#Odds ratio per word change (assuming average of 8 words) = 1.29 = 29% increase in likelihood to vote yes per env word
+```
+
+
+```{r}
+# Generate new data for prediction
+new_data_env <- with(energyact_fin_summary, expand.grid(
+  env = seq(min(env), max(env), length.out = 100),
+  econ = mean(econ), # Hold econ at its mean
+  participantID = unique(participantID)[1] # Assume random effect for a single participant
+))
+
+# Predict probabilities for the new data
+new_data_env$predicted <- predict(model_all, newdata = new_data_env, type = "response")
+
+# Plotting
+ggplot(new_data_env, aes(x = env, y = predicted)) +
+  geom_line() +
+  labs(x = "Env", y = "Predicted Probability of Intended Vote") +
+  theme_minimal() +
+  ggtitle("Predicted Probability of Intended Vote vs. Env")
+
+```
+
+```{r}
+#logistic regression with mean across waves with participants that are present in both waves
+# Assuming energyact_fin_summary contains the mean proportions and intendedVote
+#Including participants that changed vote
+#Adding nonlinear relationship (env squared)
+
+# Add a new column for env squared to the dataset
+energyact_fin_summary$env_squared <- energyact_fin_summary$env^2
+
+# Adjusted logistic regression model to include env and env squared
+model_all_squared <- glmer(intendedVote ~ econ + env + env_squared + (1 | participantID),
+                   family = binomial, data = energyact_fin_summary)
+
+# Display the summary of the adjusted model
+summary(model_all_squared)
+#Odds Ratio Env
+# Extract fixed effects coefficients directly from the model object
+fixed_effects_squared <- coef(model_all_squared)$participantID[["(Intercept)"]]
+
+# Extract the coefficient for env_mean
+env_coef_squared <- fixef(model_all_squared)["env"]
+
+# Calculate the odds ratio for env_mean
+env_or_squared <- exp(env_coef_squared)
+
+# Print the odds ratio
+print(paste("Odds ratio of Env =", env_or_squared))
+per_word_or_squared <- env_or_squared^0.125
+print(paste("Odds ratio of Env per word change (1/8) =", per_word_or_squared))
+
+#Env significantly predicts intendedVote
+#Odds ratio of Env = 7.59
+#Odds ratio per word change (assuming average of 8 words) = 1.29 = 29% increase in likelihood to vote yes per env word
+```
+
+```{r}
+# Generate a sequence of 'env' values covering the observed range
+env_values <- seq(from = min(energyact_fin_summary$env, na.rm = TRUE), 
+                  to = max(energyact_fin_summary$env, na.rm = TRUE), 
+                  length.out = 1000)
+
+# Create a new data frame for prediction
+new_data <- expand.grid(
+  env = env_values,
+  econ = mean(energyact_fin_summary$econ, na.rm = TRUE), # Hold econ constant at its mean
+  env_squared = env_values^2, # Include the squared term
+  participantID = unique(energyact_fin_summary$participantID)[1] # Use a representative participant
+)
+
+# Predict probabilities using the model
+new_data$predicted_probability <- predict(model_all_squared, newdata = new_data, type = "response")
+
+# Plot
+ggplot(new_data, aes(x = env, y = predicted_probability)) +
+  geom_line() +
+  labs(title = "Predicted Probability of Intended Vote vs. Environmental Concern",
+       x = "Environmental Concern (Env)", 
+       y = "Predicted Probability of Intended Vote") +
+  theme_minimal()
+
+# Coefficients from the model
+coef_env_2 <- fixef(model_all_squared)["env"]
+coef_env_squared <- fixef(model_all_squared)["env_squared"]
+
+# Calculate the turning point
+turning_point <- -coef_env_2 / (2 * coef_env_squared)
+
+print(paste("Turning point of Env: ", turning_point))
+```
+
+
+```{r}
+#logistic regression with mean across waves with participants that are present in both waves
+# Assuming energyact_fin_summary contains the mean proportions and intendedVote
+#Excluding participants that changed vote
+model_cons <- glmer(intendedVote ~ econ + env + (1 | participantID),
+               family = binomial, data = energyact_fin_summary_cons)
+
+summary(model_cons)
+#Odds Ratio Env
+# Extract fixed effects coefficients directly from the model object
+fixed_effects_cons <- coef(model_cons)$participantID[["(Intercept)"]]
+
+# Extract the coefficient for env_mean
+env_coef_cons <- fixef(model_cons)["env"]
+
+# Calculate the odds ratio for env_mean
+env_or_cons <- exp(env_coef_cons)
+
+# Print the odds ratio
+print(paste("Odds ratio of Env =", env_or_cons))
+per_word_or_cons <- env_or_cons^0.125
+print(paste("Odds ratio of Env per word change (1/8) =", per_word_or_cons))
+
+#Env significantly predicts intendedVote
+#Odds ratio of Env = 22.56
+#Odds ratio per word change (assuming average of 8 words) = 1.48 = 48 increase in likelihood to vote yes per env word
+```
+
+```{r}
+# Generate new data for prediction focusing on 'env'
+new_data_env_cons <- with(energyact_fin_summary_cons, expand.grid(
+  env = seq(min(env), max(env), length.out = 100),
+  econ = mean(econ, na.rm = TRUE), # Hold econ at its mean, accounting for NA values
+  participantID = unique(participantID)[1] # Assume random effect for a single representative participant
+))
+
+# Predict probabilities for the new data based on the model
+new_data_env_cons$predicted <- predict(model_cons, newdata = new_data_env_cons, type = "response")
+
+# Plotting the predicted probabilities against 'env'
+ggplot(new_data_env_cons, aes(x = env, y = predicted)) +
+  geom_line() +
+  labs(x = "Environmental Concern (Env)", y = "Predicted Probability of Intended Vote") +
+  theme_minimal() +
+  ggtitle("Predicted Probability of Intended Vote vs. Environmental Concern")
+```
+
+
+```{r}
+# Assuming proportions_both_vote_wave is your dataframe
+data <- proportions_both_vote_wave
+
+# Convert wave to a factor
+data$wave <- as.factor(data$wave)
+
+# Mixed-effects logistic regression
+mixed_model <- glmer(intendedVote ~ econ + env + wave + (1 | participantID), 
+                     family = binomial(link = "logit"), 
+                     data = data)
+
+# Summary of the model
+summary(mixed_model)
+
+#No significant results
+```
+
+
+
+
+
+
+
+

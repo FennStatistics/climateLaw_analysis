@@ -1,0 +1,39 @@
+"0","########################################"
+"0","# load German dictionary"
+"0","########################################"
+"0","setwd(""data dictionaries"")"
+"2","Warning: The working directory was changed to /Users/nfrings/Documents/PhD/Studies/mental models/Swiss climate vote/Analysis_newest_Julius_NF/data dictionaries inside a notebook chunk. The working directory will be reset when the chunk is finished running. Use the knitr root.dir option in the setup chunk to change the working directory for notebook chunks."
+"0","### german"
+"0","dict_german <- readr::read_table(file = ""de_frami.txt"", col_names = TRUE)"
+"2","
+[36m──[39m [1mColumn specification[22m [36m──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────[39m
+cols(
+  words = [31mcol_character()[39m
+)
+"
+"2","Warning: 11 parsing failures.
+  row col  expected    actual           file
+ 1420  -- 1 columns 2 columns 'de_frami.txt'
+10235  -- 1 columns 2 columns 'de_frami.txt'
+27112  -- 1 columns 2 columns 'de_frami.txt'
+97318  -- 1 columns 2 columns 'de_frami.txt'
+98336  -- 1 columns 2 columns 'de_frami.txt'
+..... ... ......... ......... ..............
+See problems(...) for more details.
+"
+"0","dict_german <- str_subset(string = dict_german$words, pattern = ""/"")"
+"0","dict_german <- str_remove_all(string = dict_german, pattern = ""/.*$"")"
+"0","dict_german <- str_subset(string = dict_german, pattern = ""^[[:alpha:]]{2,}"")"
+"0","dict_german <- c(dict_german, ""globale"", ""KOGNITIVE"", ""Modelle"", ""Nutzeneffekte"", ""Faktoren"", ""Soziale"")"
+"0","dict_german <- tolower(x = dict_german)"
+"0","dict_german <- dict_german[nchar(x = dict_german) >= 5]"
+"0","dict_german <- unique(dict_german)"
+"0",""
+"0",""
+"0","dict_german <- c(""nur"", ""elektro"", ""teuerung"", ""klimaschutz"", ""klima"", ""co2"", ""subventionen"", ""Stromfresser"", ""Landwirtschaft"", ""veränderungen"",""stromfresser"", ""Treibhausgase"",""Stromversorgung"", ""Veränderungen"", ""Subventionen"",""Klimaneutralität"", ""Umweltschutz"", ""Energiesparen"", ""erneuerbare"", ""Strom"", dict_german)"
+"0","dict_german <- unique(dict_german)"
+"0",""
+"0",""
+"0","## to swiss german"
+"0","dict_german <- str_replace_all(string = dict_german, pattern = ""ß"", replacement = ""ss"")"
+"0","setwd("".."")"

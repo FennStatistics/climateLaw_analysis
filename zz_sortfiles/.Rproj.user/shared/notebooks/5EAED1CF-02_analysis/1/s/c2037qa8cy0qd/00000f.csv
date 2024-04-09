@@ -1,0 +1,286 @@
+"0","# reset R environment"
+"0","# rm(list=ls(all=TRUE)) # ! not needed in rmarkdown, but good practice"
+"0","# graphics.off() # ! not needed in rmarkdown"
+"0",""
+"0","################"
+"0","# install and load packages"
+"0","################"
+"0","#  if packages are not already installed, the function will install and activate them"
+"0","usePackage <- function(p) {"
+"0","  if (!is.element(p, installed.packages()[,1]))"
+"0","    install.packages(p, dep = TRUE, repos = ""http://cran.us.r-project.org"")"
+"0","  require(p, character.only = TRUE)"
+"0","}"
+"0",""
+"0","usePackage(""tidyverse"") # data cleaning and summarizing"
+"2","Loading required package: tidyverse
+"
+"2","── [1mAttaching core tidyverse packages[22m ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── tidyverse 2.0.0 ──
+[32m✔[39m [34mdplyr    [39m 1.1.2     [32m✔[39m [34mreadr    [39m 2.1.4
+[32m✔[39m [34mforcats  [39m 1.0.0     [32m✔[39m [34mstringr  [39m 1.5.0
+[32m✔[39m [34mggplot2  [39m 3.4.2     [32m✔[39m [34mtibble   [39m 3.2.1
+[32m✔[39m [34mlubridate[39m 1.9.2     [32m✔[39m [34mtidyr    [39m 1.3.0
+[32m✔[39m [34mpurrr    [39m 1.0.1     "
+"2","── [1mConflicts[22m ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── tidyverse_conflicts() ──
+[31m✖[39m [34mdplyr[39m::[32mfilter()[39m masks [34mstats[39m::filter()
+[31m✖[39m [34mdplyr[39m::[32mlag()[39m    masks [34mstats[39m::lag()
+[36mℹ[39m Use the ]8;;http://conflicted.r-lib.org/conflicted package]8;; to force all conflicts to become errors"
+"0","usePackage(""jsonlite"") # load SPSS, ... data "
+"2","Loading required package: jsonlite
+"
+"2","
+Attaching package: ‘jsonlite’
+
+"
+"2","The following object is masked from ‘package:purrr’:
+
+    flatten
+
+"
+"0","## psychometric analysis"
+"0","usePackage(""moments"") # skewness, kurtosis"
+"2","Loading required package: moments
+"
+"0","usePackage(""psych"")"
+"2","Loading required package: psych
+"
+"2","
+Attaching package: ‘psych’
+
+"
+"2","The following objects are masked from ‘package:ggplot2’:
+
+    %+%, alpha
+
+"
+"0","## hypothesis tests"
+"0","usePackage(""ggstatsplot"")"
+"2","Loading required package: ggstatsplot
+"
+"2","You can cite this package as:
+     Patil, I. (2021). Visualizations with statistical details: The 'ggstatsplot' approach.
+     Journal of Open Source Software, 6(61), 3167, doi:10.21105/joss.03167
+"
+"0","usePackage(""sjPlot"")"
+"2","Loading required package: sjPlot
+"
+"0","usePackage(""lmer"")"
+"1","Warning in "
+"1",""
+"1","install.packages"
+"1",""
+"1"," :
+  "
+"1",""
+"1","package ‘lmer’ is not available for this version of R
+
+A version of this package for your version of R might be available elsewhere,
+see the ideas at
+https://cran.r-project.org/doc/manuals/r-patched/R-admin.html#Installing-packages"
+"1",""
+"1","
+"
+"2","Loading required package: lmer
+"
+"2","Warning: there is no package called ‘lmer’"
+"0","usePackage(""lmerTest"")"
+"2","Loading required package: lmerTest
+"
+"2","Loading required package: lme4
+"
+"2","Loading required package: Matrix
+"
+"2","
+Attaching package: ‘Matrix’
+
+"
+"2","The following objects are masked from ‘package:tidyr’:
+
+    expand, pack, unpack
+
+"
+"2","
+Attaching package: ‘lmerTest’
+
+"
+"2","The following object is masked from ‘package:lme4’:
+
+    lmer
+
+"
+"2","The following object is masked from ‘package:stats’:
+
+    step
+
+"
+"0","usePackage(""lme4"")"
+"0","usePackage(""sjlabelled"")"
+"2","Loading required package: sjlabelled
+"
+"2","
+Attaching package: ‘sjlabelled’
+
+"
+"2","The following object is masked from ‘package:forcats’:
+
+    as_factor
+
+"
+"2","The following object is masked from ‘package:dplyr’:
+
+    as_label
+
+"
+"2","The following object is masked from ‘package:ggplot2’:
+
+    as_label
+
+"
+"0","usePackage(""sjmisc"")"
+"2","Loading required package: sjmisc
+"
+"2","
+Attaching package: ‘sjmisc’
+
+"
+"2","The following object is masked from ‘package:purrr’:
+
+    is_empty
+
+"
+"2","The following object is masked from ‘package:tidyr’:
+
+    replace_na
+
+"
+"2","The following object is masked from ‘package:tibble’:
+
+    add_case
+
+"
+"0","usePackage(""emmeans"")"
+"2","Loading required package: emmeans
+"
+"0","usePackage(""rcompanion"")"
+"2","Loading required package: rcompanion
+"
+"2","Registered S3 method overwritten by 'data.table':
+  method           from
+  print.data.table     
+"
+"2","
+Attaching package: ‘rcompanion’
+
+"
+"2","The following object is masked from ‘package:psych’:
+
+    phi
+
+"
+"0","usePackage(""rstatix"")"
+"2","Loading required package: rstatix
+"
+"2","
+Attaching package: ‘rstatix’
+
+"
+"2","The following object is masked from ‘package:stats’:
+
+    filter
+
+"
+"0","usePackage(""specr"")"
+"2","Loading required package: specr
+"
+"2","
+Attaching package: ‘specr’
+
+"
+"2","The following object is masked from ‘package:sjPlot’:
+
+    plot_grid
+
+"
+"0","usePackage(""corrplot"")"
+"2","Loading required package: corrplot
+"
+"2","corrplot 0.92 loaded
+"
+"0","usePackage(""patchwork"")"
+"2","Loading required package: patchwork
+"
+"0","## CAM"
+"0","usePackage(""igraph"") # load SPSS, ... data "
+"2","Loading required package: igraph
+"
+"2","
+Attaching package: ‘igraph’
+
+"
+"2","The following objects are masked from ‘package:lubridate’:
+
+    %--%, union
+
+"
+"2","The following objects are masked from ‘package:dplyr’:
+
+    as_data_frame, groups, union
+
+"
+"2","The following objects are masked from ‘package:purrr’:
+
+    compose, simplify
+
+"
+"2","The following object is masked from ‘package:tidyr’:
+
+    crossing
+
+"
+"2","The following object is masked from ‘package:tibble’:
+
+    as_data_frame
+
+"
+"2","The following objects are masked from ‘package:stats’:
+
+    decompose, spectrum
+
+"
+"2","The following object is masked from ‘package:base’:
+
+    union
+
+"
+"0","## outputs"
+"0","usePackage(""stargazer"") # create tables"
+"2","Loading required package: stargazer
+"
+"2","
+Please cite as: 
+
+"
+"2"," Hlavac, Marek (2022). stargazer: Well-Formatted Regression and Summary Statistics Tables.
+"
+"2"," R package version 5.2.3. https://CRAN.R-project.org/package=stargazer 
+
+"
+"0","usePackage(""DT"") # create dynamic tables"
+"2","Loading required package: DT
+"
+"0","## wordlists"
+"0","usePackage(""tm"")"
+"2","Loading required package: tm
+"
+"2","Loading required package: NLP
+"
+"2","
+Attaching package: ‘NLP’
+
+"
+"2","The following object is masked from ‘package:ggplot2’:
+
+    annotate
+
+"
+"0","rm(usePackage)"

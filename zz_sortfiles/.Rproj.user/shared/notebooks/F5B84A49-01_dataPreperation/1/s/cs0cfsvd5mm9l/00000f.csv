@@ -1,0 +1,5 @@
+"0","knitr::opts_chunk$set(class.source = ""CSSoutput"","
+"0","                      eval = TRUE, echo = TRUE, include = TRUE,      "
+"0","                      fig.align='center', fig.show='asis',"
+"0","                      size='footnotesize')"
+"0",""
