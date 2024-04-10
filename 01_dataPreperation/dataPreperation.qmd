@@ -1,12 +1,25 @@
 ---
-title: "Data Preperation File for t2 CAM study (samples from USA, Germany)  - first step create data sets"
-author: "Julius Fenn"
+title: "Data Preperation Climate Law Study"
+author: "Julius Fenn, Nina Frings"
 format:
   html:
     toc: true
     toc-depth: 3
     html-math-method: katex
+bibliography: Library_subset.bib
+biblio-style: apalike
+link-citations: true
 ---
+
+# Background Information
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) document. Instructions for writing these documents and background information can be found in the book written by @xieMarkdownDefinitiveGuide2018 When you execute code within the document, the results appear beneath the code. 
+
+The file include all analysis code for the published article <span style="background-color:yellow;">XXX</span>. In the article a multi-method approach was applied, whereby two modes of data collection - Cognitive-Affective Maps (CAM) and surveys - in accordance with two statistical procedures - graph theory [e.g., @newmanNetworksIntroduction2018] and Latent Variable Models [e.g., @skrondalGeneralizedLatentVariable2004] - have been combined. 
+
+This file contains the pre-processing step (clean, transform data), whereby the folder "dataAnalysis" the analysis step (test hypotheses and exploratory analyses), which follows the classical data-analysis pipeline [see @pengArtDataScience2016; @wickhamDataScienceImport2017].
+
+
 
 # Notes
 
@@ -14,166 +27,47 @@ Remark:
 
 
 ```{r}
-## global variables: 
-save_CAMs_as_pictures = FALSE
+#| label: global variables
+
+### global variables:
+
+## for data cleaning CAMs
+#  remove all CAMs for which no word can be found in a German dictionary
+global_removeFakeCAMs = TRUE # ! keep to TRUE
+# save fake CAMs as R object
+global_saveFakeCAMs = TRUE # TRUE / FALSE
+
+
+## for data cleaning CAMs
+global_removeIPs_num = 3 # numeric value; remove all participants which IP is more then "global_removeIPs_num" times in the data set
+# remove participants flagged as SPAM by Qualtrics
+global_removeSpam = TRUE # TRUE / FALSE
+# remove participants with multiple ids (greater / equal than global_removeIPs_num)
+global_removeIPs = TRUE # TRUE / FALSE
 ```
 
 
+# load raw data
 
-# prepare data
-
-## load raw data
-
+Load R packages, functions:
 
 ```{r}
+#| label: load packages, functions
 #| echo: true
 #| warning: false
 
 # sets the directory of location of this script as the current directory
 # setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 
-########################################
-# load packages
-########################################
+### load packages
 require(pacman)
 p_load('tidyverse', 'jsonlite', 'magrittr', 'xlsx',
        'stargazer', 'psych', 'jtools', 'DT', 'ggstatsplot', 
-       'lavaan', 
-       'regsem', 'MplusAutomation', 'igraph')
-
-########################################
-# list data files
-########################################
-setwd("data/Germany")
-folders <- list.files(pattern = "^study_result.*")
-
-########################################
-# create data files - GERMANY
-########################################
-### get CAM data
-writeLines("", "CAMdata_Germany.txt") # create file
-text_connection <- file("CAMdata_Germany.txt", "a") # open connection to append
-
-### get pre CAM data
-writeLines("", "preCAM_Germany.txt") # create file
-text_connection_pre <- file("preCAM_Germany.txt", "a") # open connection to append
-
-### get post CAM data
-writeLines("", "postCAM_Germany.txt") # create file
-text_connection_post <- file("postCAM_Germany.txt", "a") # open connection to append
-
-for(i in 1:length(folders)){
-  setwd(folders[i])
-  if(length(dir()) == 3){
-    # print(i)
-    ### CAM data
-    setwd(dir()[2])
-    tmp <- jsonlite::fromJSON(txt = "data.txt")
-    writeLines(jsonlite::toJSON(x = tmp), text_connection)
-    setwd("..")
-
-    ### pre CAM data
-    setwd(dir()[1])
-    tmp <- jsonlite::fromJSON(txt = "data.txt")
-    writeLines(jsonlite::toJSON(x = tmp), text_connection_pre)
-    setwd("..")
-
-    ### post CAM data
-    setwd(dir()[3])
-    tmp <- jsonlite::fromJSON(txt = "data.txt")
-    writeLines(jsonlite::toJSON(x = tmp), text_connection_post)
-    setwd("..")
-  }
-  setwd("..")
-}
-close(text_connection) # close connection
-close(text_connection_pre) # close connection
-close(text_connection_post) # close connection
-
-########################################
-# move files to output folder
-########################################
-### copy files (not overwritten)
-tmp_file_from <-  getwd()
-setwd("../../outputs")
-file.copy(from =  paste0(tmp_file_from, "/CAMdata_Germany.txt"), to = paste0(getwd(), "/CAMdata_Germany.txt"))
-file.copy(from =  paste0(tmp_file_from, "/preCAM_Germany.txt"), to = paste0(getwd(), "/preCAM_Germany.txt"))
-file.copy(from =  paste0(tmp_file_from, "/postCAM_Germany.txt"), to = paste0(getwd(), "/postCAM_Germany.txt"))
-### remove files
-file.remove(paste0(tmp_file_from, "/CAMdata_Germany.txt"))
-file.remove(paste0(tmp_file_from, "/preCAM_Germany.txt"))
-file.remove(paste0(tmp_file_from, "/postCAM_Germany.txt"))
+       'lavaan', 'regsem', 'MplusAutomation', 'igraph', 'mapview')
 
 
-
-########################################
-# list data files - USA
-########################################
-setwd("../data/USA")
-folders <- list.files(pattern = "^study_result.*")
-
-########################################
-# create data files
-########################################
-### get CAM data
-writeLines("", "CAMdata_USA.txt") # create file
-text_connection <- file("CAMdata_USA.txt", "a") # open connection to append
-
-### get pre CAM data
-writeLines("", "preCAM_USA.txt") # create file
-text_connection_pre <- file("preCAM_USA.txt", "a") # open connection to append
-
-### get post CAM data
-writeLines("", "postCAM_USA.txt") # create file
-text_connection_post <- file("postCAM_USA.txt", "a") # open connection to append
-
-for(i in 1:length(folders)){
-  setwd(folders[i])
-  if(length(dir()) == 3){
-    # print(i)
-    ### CAM data
-    setwd(dir()[2])
-    tmp <- jsonlite::fromJSON(txt = "data.txt")
-    writeLines(jsonlite::toJSON(x = tmp), text_connection)
-    setwd("..")
-
-    ### pre CAM data
-    setwd(dir()[1])
-    tmp <- jsonlite::fromJSON(txt = "data.txt")
-    writeLines(jsonlite::toJSON(x = tmp), text_connection_pre)
-    setwd("..")
-
-    ### post CAM data
-    setwd(dir()[3])
-    tmp <- jsonlite::fromJSON(txt = "data.txt")
-    writeLines(jsonlite::toJSON(x = tmp), text_connection_post)
-    setwd("..")
-  }
-  setwd("..")
-}
-close(text_connection) # close connection
-close(text_connection_pre) # close connection
-close(text_connection_post) # close connection
-
-########################################
-# move files to output folder
-########################################
-### copy files (not overwritten)
-tmp_file_from <-  getwd()
-setwd("../../outputs")
-file.copy(from =  paste0(tmp_file_from, "/CAMdata_USA.txt"), to = paste0(getwd(), "/CAMdata_USA.txt"))
-file.copy(from =  paste0(tmp_file_from, "/preCAM_USA.txt"), to = paste0(getwd(), "/preCAM_USA.txt"))
-file.copy(from =  paste0(tmp_file_from, "/postCAM_USA.txt"), to = paste0(getwd(), "/postCAM_USA.txt"))
-### remove files
-file.remove(paste0(tmp_file_from, "/CAMdata_USA.txt"))
-file.remove(paste0(tmp_file_from, "/preCAM_USA.txt"))
-file.remove(paste0(tmp_file_from, "/postCAM_USA.txt"))
-
-########################################
-# load functions
-########################################
-# print(getwd())
-setwd("../../../functions")
+### load functions
+setwd("../functions")
 for(i in 1:length(dir())){
   # print(dir()[i])
   source(dir()[i], encoding = "utf-8")
@@ -189,872 +83,1246 @@ rm(i)
 ```
 
 
-## set up data.frame questionnaires
+Load raw data:
 
-### for Germany
 
-```{r}
-setwd("outputs")
-########################################
-# Germany
-########################################
-# > pre study
-suppressMessages(read_file('preCAM_Germany.txt') %>%
-                   # ... split it into lines ...
-                   str_split('\n') %>% first() %>%
-                   # ... filter empty rows ...
-                   discard(function(x) x == '') %>%
-                   discard(function(x) x == '\r') %>%
-                   # ... parse JSON into a data.frame
-                   map_dfr(fromJSON, flatten=TRUE)) -> dat_preCAM_Germany
-# > post study
-suppressMessages(read_file('postCAM_Germany.txt') %>%
-                   # ... split it into lines ...
-                   str_split('\n') %>% first() %>%
-                   # ... filter empty rows ...
-                   discard(function(x) x == '') %>%
-                   discard(function(x) x == '\r') %>%
-                   # ... parse JSON into a data.frame
-                   map_dfr(fromJSON, flatten=TRUE)) -> dat_postCAM_Germany
-
-
-########################################
-# create counter variable for both data sets
-########################################
-### pre study
-dat_preCAM_Germany$ID <- NA
-dat_preCAM_Germany$country <- NA
-
-tmp_IDcounter <- 0
-for(i in 1:nrow(dat_preCAM_Germany)){
-  if(!is.na(dat_preCAM_Germany$sender[i]) && dat_preCAM_Germany$sender[i] == "Greetings"){
-    # tmp <- dat_preCAM_Germany$prolific_pid[i]
-    tmp_IDcounter = tmp_IDcounter + 1
-    dat_preCAM_Germany$country[i] <- "Germany" ## add country
-  }
-  dat_preCAM_Germany$ID[i] <- tmp_IDcounter
-}
-
-### post study
-dat_postCAM_Germany$ID <- NA
-dat_postCAM_Germany$country <- NA
-
-tmp_IDcounter <- 0
-for(i in 1:nrow(dat_postCAM_Germany)){
-  if(!is.na(dat_postCAM_Germany$sender[i]) && dat_postCAM_Germany$sender[i] == "CAMfeedbackGeneral"){
-    # tmp <- dat_postCAM_Germany$prolific_pid[i]
-    tmp_IDcounter = tmp_IDcounter + 1
-    dat_postCAM_Germany$country[i] <- "Germany" ## add country
-  }
-  dat_postCAM_Germany$ID[i] <- tmp_IDcounter
-}
-
-
-########################################
-# keep only complete data sets
-########################################
-### pre-study
-sum(table(dat_preCAM_Germany$ID) != max(table(dat_preCAM_Germany$ID)))
-sum(table(dat_preCAM_Germany$ID) == max(table(dat_preCAM_Germany$ID)))
-
-dat_preCAM_Germany <- dat_preCAM_Germany[dat_preCAM_Germany$ID %in% names(table(dat_preCAM_Germany$ID))[table(dat_preCAM_Germany$ID) == max(table(dat_preCAM_Germany$ID))],]
-
-### post-study
-sum(table(dat_postCAM_Germany$ID) != max(table(dat_postCAM_Germany$ID)))
-sum(table(dat_postCAM_Germany$ID) == max(table(dat_postCAM_Germany$ID)))
-
-dat_postCAM_Germany <- dat_postCAM_Germany[dat_postCAM_Germany$ID %in% names(table(dat_postCAM_Germany$ID))[table(dat_postCAM_Germany$ID) == max(table(dat_postCAM_Germany$ID))],]
-
-
-########################################
-# json (from JATOS) to 2D data.frame
-########################################
-################################ pre-study
-tmp_notNumeric <- str_subset(string = colnames(dat_preCAM_Germany), pattern = "^meta|^R")
-tmp_notNumeric <- str_subset(string = tmp_notNumeric, pattern = "labjs|location", negate = TRUE)
-
-
-vec_ques <- c("PROLIFIC_PID",
-                "dummy_informedconsent",
-                "commCheck",
-                "country",  tmp_notNumeric)
-
-vec_notNumeric = c("PROLIFIC_PID",
-                   "country",
-                   tmp_notNumeric)
-
-questionnaire_preCAM_Germany <- questionnairetype(dataset = dat_preCAM_Germany, 
-                                        listvars = vec_ques, 
-                                        notNumeric = vec_notNumeric)
-
-
-################################ post-study
-tmp_numeric <- str_subset(string = colnames(dat_postCAM_Germany), pattern = "^Biospheric|^probabilityClimate|^concernClimate|^Risk|^policyItems")
-
-
-vec_ques <- c("PROLIFIC_PID",
-                tmp_numeric,
-                "education",
-              "lrscale", "rlgdgr",
-                "feedback_critic",
-                "country")
-
-vec_notNumeric = c("PROLIFIC_PID",
-                   "education",
-                   "lrscale", "rlgdgr",
-                   "feedback_critic",
-                   "country")
-
-questionnaire_postCAM_Germany <- questionnairetype(dataset = dat_postCAM_Germany, 
-                                        listvars = vec_ques, 
-                                        notNumeric = vec_notNumeric)
-
-
-
-
-
-################################ post-study CET 
-questionnaire_postCAM_Germany$mean_CET <- NA
-
-#> simple mean score
-tmp <- dat_postCAM_Germany[, c("ID", "CE_A", "CM_A", "BP_A", "choosenOption")]
-# head(tmp)
-for(i in 1:length(unique(tmp$ID))){
-  tmp_person <- tmp[tmp$ID == unique(tmp$ID)[i], ]
-  
-  
-  questionnaire_postCAM_Germany$mean_CET[questionnaire_postCAM_Germany$ID == unique(tmp$ID)[i]] <- sum(tmp_person$choosenOption == "optionA", na.rm = TRUE) / 25
-}
-
-
-dim(questionnaire_preCAM_Germany)
-dim(questionnaire_postCAM_Germany)
-
-questionnaire_Germany <- left_join(questionnaire_preCAM_Germany, questionnaire_postCAM_Germany, by="ID")
-dim(questionnaire_Germany)
-```
-
-### for USA
-
-```{r}
-setwd("outputs")
-########################################
-# USA
-########################################
-# > pre study
-suppressMessages(read_file('preCAM_USA.txt') %>%
-                   # ... split it into lines ...
-                   str_split('\n') %>% first() %>%
-                   # ... filter empty rows ...
-                   discard(function(x) x == '') %>%
-                   discard(function(x) x == '\r') %>%
-                   # ... parse JSON into a data.frame
-                   map_dfr(fromJSON, flatten=TRUE)) -> dat_preCAM_USA
-# > post study
-suppressMessages(read_file('postCAM_USA.txt') %>%
-                   # ... split it into lines ...
-                   str_split('\n') %>% first() %>%
-                   # ... filter empty rows ...
-                   discard(function(x) x == '') %>%
-                   discard(function(x) x == '\r') %>%
-                   # ... parse JSON into a data.frame
-                   map_dfr(fromJSON, flatten=TRUE)) -> dat_postCAM_USA
-
-
-########################################
-# create counter variable for both data sets
-########################################
-### pre study
-dat_preCAM_USA$ID <- NA
-dat_preCAM_USA$country <- NA
-
-tmp_IDcounter <- 0
-for(i in 1:nrow(dat_preCAM_USA)){
-  if(!is.na(dat_preCAM_USA$sender[i]) && dat_preCAM_USA$sender[i] == "Greetings"){
-    # tmp <- dat_preCAM_USA$prolific_pid[i]
-    tmp_IDcounter = tmp_IDcounter + 1
-    dat_preCAM_USA$country[i] <- "USA" ## add country
-  }
-  dat_preCAM_USA$ID[i] <- tmp_IDcounter
-}
-
-### post study
-dat_postCAM_USA$ID <- NA
-dat_postCAM_USA$country <- NA
-
-tmp_IDcounter <- 0
-for(i in 1:nrow(dat_postCAM_USA)){
-  if(!is.na(dat_postCAM_USA$sender[i]) && dat_postCAM_USA$sender[i] == "CAMfeedbackGeneral"){
-    # tmp <- dat_postCAM_USA$prolific_pid[i]
-    tmp_IDcounter = tmp_IDcounter + 1
-    dat_postCAM_USA$country[i] <- "USA" ## add country
-  }
-  dat_postCAM_USA$ID[i] <- tmp_IDcounter
-}
-
-
-########################################
-# keep only complete data sets
-########################################
-### pre-study
-sum(table(dat_preCAM_USA$ID) != max(table(dat_preCAM_USA$ID)))
-sum(table(dat_preCAM_USA$ID) == max(table(dat_preCAM_USA$ID)))
-
-dat_preCAM_USA <- dat_preCAM_USA[dat_preCAM_USA$ID %in% names(table(dat_preCAM_USA$ID))[table(dat_preCAM_USA$ID) == max(table(dat_preCAM_USA$ID))],]
-
-### post-study
-sum(table(dat_postCAM_USA$ID) != max(table(dat_postCAM_USA$ID)))
-sum(table(dat_postCAM_USA$ID) == max(table(dat_postCAM_USA$ID)))
-
-dat_postCAM_USA <- dat_postCAM_USA[dat_postCAM_USA$ID %in% names(table(dat_postCAM_USA$ID))[table(dat_postCAM_USA$ID) == max(table(dat_postCAM_USA$ID))],]
-
-
-########################################
-# json (from JATOS) to 2D data.frame
-########################################
-################################ pre-study
-tmp_notNumeric <- str_subset(string = colnames(dat_preCAM_USA), pattern = "^meta|^R")
-tmp_notNumeric <- str_subset(string = tmp_notNumeric, pattern = "labjs|location", negate = TRUE)
-
-
-vec_ques <- c("PROLIFIC_PID",
-                "dummy_informedconsent",
-                "commCheck",
-                "country",  tmp_notNumeric)
-
-vec_notNumeric = c("PROLIFIC_PID",
-                   "country",
-                   tmp_notNumeric)
-
-questionnaire_preCAM_USA <- questionnairetype(dataset = dat_preCAM_USA, 
-                                        listvars = vec_ques, 
-                                        notNumeric = vec_notNumeric)
-
-
-################################ post-study
-tmp_numeric <- str_subset(string = colnames(dat_postCAM_USA), pattern = "^Biospheric|^probabilityClimate|^concernClimate|^Risk|^policyItems|rlgdgr")
-
-vec_ques <- c("PROLIFIC_PID",
-                tmp_numeric,
-                "education",
-              "lrscale", "rlgdgr",
-                "feedback_critic",
-                "country")
-
-vec_notNumeric = c("PROLIFIC_PID",
-                   "education",
-                   "lrscale", "rlgdgr",
-                   "feedback_critic",
-                   "country")
-
-questionnaire_postCAM_USA <- questionnairetype(dataset = dat_postCAM_USA, 
-                                        listvars = vec_ques, 
-                                        notNumeric = vec_notNumeric)
-
-
-################################ post-study CET 
-questionnaire_postCAM_USA$mean_CET <- NA
-
-#> simple mean score
-tmp <- dat_postCAM_USA[, c("ID", "CE_A", "CM_A", "BP_A", "choosenOption")]
-# head(tmp)
-for(i in 1:length(unique(tmp$ID))){
-  tmp_person <- tmp[tmp$ID == unique(tmp$ID)[i], ]
-  
-  
-  questionnaire_postCAM_USA$mean_CET[questionnaire_postCAM_USA$ID == unique(tmp$ID)[i]] <- sum(tmp_person$choosenOption == "optionA", na.rm = TRUE) / 25
-}
-
-
-dim(questionnaire_preCAM_USA)
-dim(questionnaire_postCAM_USA)
-
-questionnaire_USA <- left_join(questionnaire_preCAM_USA, questionnaire_postCAM_USA, by="ID")
-dim(questionnaire_USA)
-# questionnaire_USA <- na.omit(questionnaire_USA) # remove 2 missings !!!
-# dim(questionnaire_USA)
-```
-
-### check current data for conspiracy / country group
-
-```{r}
-questionnaire_t1 <- read.xlsx2(file = "data/questionnaire_final.xlsx", sheetIndex = 1)
-
-########################################
-# Germany
-########################################
-tmp_dat <- questionnaire_t1[questionnaire_t1$PROLIFIC_PID %in% questionnaire_Germany$PROLIFIC_PID,]
-table(tmp_dat$country)
-table(tmp_dat$socio_sex)
-
-
-tmp_dat$socio_age <- as.numeric(tmp_dat$socio_age)
-psych::describe(tmp_dat$socio_age)
-
-
-table(tmp_dat$classes_conspiracy) # 3 = high, 1 = low
-
-
-########################################
-# USA
-########################################
-tmp_dat <- questionnaire_t1[questionnaire_t1$PROLIFIC_PID %in% questionnaire_USA$PROLIFIC_PID,]
-table(tmp_dat$country)
-table(tmp_dat$politicalParty)
-table(tmp_dat$socio_sex)
-
-table(tmp_dat$classes_conspiracy) # 3 = high, 1 = low
-
-table(tmp_dat$politicalParty, tmp_dat$classes_conspiracy)
-
-tmp_dat$socio_age <- as.numeric(tmp_dat$socio_age)
-psych::describe(tmp_dat$socio_age)
-
-################# IDs who have not participated yet
-tmp_dat <- questionnaire_t1[questionnaire_t1$country == "USA" & (questionnaire_t1$classes_conspiracy == "1" | questionnaire_t1$classes_conspiracy == "3"),]
-tmp_dat <- tmp_dat$PROLIFIC_PID[!tmp_dat$PROLIFIC_PID %in% questionnaire_USA$PROLIFIC_PID]
-write.xlsx2(x = tmp_dat, file = "outputs/PROLIFIC_PIDs_USA_notParticipated.xlsx")
-```
-
-## compute mean variables for scales
-
-
-### for Germany
+Remark: The survey data was collected using the [Qualtrics-Software](https://www.qualtrics.com/) and the CAM data was collected using the C.A.M.E.L. software [@Fenn_Cognitive-Affective_Maps_extended_2023], hosted on a [JATOS-server](https://www.jatos.org/).
 
 
 ```{r}
-########################################
-# number of items for each scale
-########################################
-sum(str_detect(string = colnames(questionnaire_Germany), pattern = "^Biospheric"))
-sum(str_detect(string = colnames(questionnaire_Germany), pattern = "^Risk"))
-sum(str_detect(string = colnames(questionnaire_Germany), pattern = "^policyItems"))
-
-sum(str_detect(string = colnames(questionnaire_Germany), pattern = "^concernClimate"))
-sum(str_detect(string = colnames(questionnaire_Germany), pattern = "^probabilityClimate"))
+#| label: load raw data
+#| echo: true
+#| warning: false
 
 
-########################################
-# reverse code all items
-#> see negative correlation between single items
-########################################
+### survey data
+## t1
+survey_p1_t1 <- read.csv(file = "data/t1/Klimagesetz.wave1.Teil1.csv", encoding = "UTF-8")
+survey_p1_t1 <- survey_p1_t1[-c(1,2), ]
+survey_p2_t1 <- read.csv(file = "data/t1/Klimagesetz.wave1.Teil2.csv", encoding = "UTF-8")
+survey_p2_t1 <- survey_p2_t1[-c(1,2), ]
 
-# items van der Linden - Biospheric Values 2015
-psych::cor.plot(r = cor(questionnaire_Germany[, str_detect(string = colnames(questionnaire_Germany),
-                                                   pattern = "^Biospheric")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "Biospheric Values scale")
+## t2
+survey_p1_t2 <- read.csv(file = "data/t2/Klimagesetz.wave2.Teil1.csv", encoding = "UTF-8")
+survey_p1_t2 <- survey_p1_t2[-c(1,2), ]
+survey_p2_t2 <- read.csv(file = "data/t2/Klimagesetz.wave2.Teil2.csv", encoding = "UTF-8")
+survey_p2_t2 <- survey_p2_t2[-c(1,2), ]
 
-# items van der Linden - Risk Perception 2015
-psych::cor.plot(r = cor(questionnaire_Germany[, str_detect(string = colnames(questionnaire_Germany),
-                                                   pattern = "^Risk")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "Risk Perception scale")
-# policy items 
-psych::cor.plot(r = cor(questionnaire_Germany[, str_detect(string = colnames(questionnaire_Germany),
-                                                   pattern = "^policyItems")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "policyItems scale")
-# items van der Linden - concern climate change
-psych::cor.plot(r = cor(questionnaire_Germany[, str_detect(string = colnames(questionnaire_Germany),
-                                                   pattern = "^concernClimate")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "concern climate change scale")
-
-# items van der Linden - how likely climate change harmful
-psych::cor.plot(r = cor(questionnaire_Germany[, str_detect(string = colnames(questionnaire_Germany),
-                                                   pattern = "^probabilityClimate")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "how likely climate change harmful scale")
+## t2 control group
+survey_p1_t2_controlGroup <- read.csv(file = "data/t2_controlGroup/Klimagesetz.control.Teil1.csv", encoding = "UTF-8")
+survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup[-c(1,2), ]
+survey_p2_t2_controlGroup <- read.csv(file = "data/t2_controlGroup/Klimagesetz.control.Teil2.csv", encoding = "UTF-8")
+survey_p2_t2_controlGroup <- survey_p2_t2_controlGroup[-c(1,2), ]
 
 
-# items van der Linden - concern climate change
-psych::cor.plot(r = cor(questionnaire_Germany[, str_detect(string = colnames(questionnaire_Germany),
-                                                   pattern = "^concernClimate|^probabilityClimate")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "concern climate change plus how likely climate change harmful scale")
-
-
-########################################
-# compute mean variables OVERALL (!)
-########################################
-### overall mean variables
-questionnaire_Germany$mean_BiosphericValues  <- questionnaire_Germany %>%
-  select(matches("^Biospheric")) %>%
-  rowMeans(na.rm = TRUE)
-
-questionnaire_Germany$mean_RiskPerception  <- questionnaire_Germany %>%
-  select(matches("^Risk")) %>%
-  rowMeans(na.rm = TRUE)
-
-questionnaire_Germany$mean_PolicyItems  <- questionnaire_Germany %>%
-  select(matches("^policyItems")) %>%
-  rowMeans(na.rm = TRUE)
-
-questionnaire_Germany$mean_CCCprobability  <- questionnaire_Germany %>%
-  select(matches("^concernClimate|^probabilityClimate")) %>%
-  rowMeans(na.rm = TRUE)
-
-
-
-psych::cor.plot(r = cor(questionnaire_Germany[, str_detect(string = colnames(questionnaire_Germany),
-                                                   pattern = "^mean")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "mean scales")
-```
-
-
-### for USA
-
-
-```{r}
-########################################
-# number of items for each scale
-########################################
-sum(str_detect(string = colnames(questionnaire_USA), pattern = "^Biospheric"))
-sum(str_detect(string = colnames(questionnaire_USA), pattern = "^Risk"))
-sum(str_detect(string = colnames(questionnaire_USA), pattern = "^policyItems"))
-
-sum(str_detect(string = colnames(questionnaire_USA), pattern = "^concernClimate"))
-sum(str_detect(string = colnames(questionnaire_USA), pattern = "^probabilityClimate"))
-
-
-########################################
-# reverse code all items
-#> see negative correlation between single items
-########################################
-
-# items van der Linden - Biospheric Values 2015
-psych::cor.plot(r = cor(questionnaire_USA[, str_detect(string = colnames(questionnaire_USA),
-                                                   pattern = "^Biospheric")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "Biospheric Values scale")
-
-# items van der Linden - Risk Perception 2015
-psych::cor.plot(r = cor(questionnaire_USA[, str_detect(string = colnames(questionnaire_USA),
-                                                   pattern = "^Risk")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "Risk Perception scale")
-# policy items 
-psych::cor.plot(r = cor(questionnaire_USA[, str_detect(string = colnames(questionnaire_USA),
-                                                   pattern = "^policyItems")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "policyItems scale")
-# items van der Linden - concern climate change
-psych::cor.plot(r = cor(questionnaire_USA[, str_detect(string = colnames(questionnaire_USA),
-                                                   pattern = "^concernClimate")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "concern climate change scale")
-
-# items van der Linden - how likely climate change harmful
-psych::cor.plot(r = cor(questionnaire_USA[, str_detect(string = colnames(questionnaire_USA),
-                                                   pattern = "^probabilityClimate")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "how likely climate change harmful scale")
-
-
-# items van der Linden - concern climate change
-psych::cor.plot(r = cor(questionnaire_USA[, str_detect(string = colnames(questionnaire_USA),
-                                                   pattern = "^concernClimate|^probabilityClimate")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "concern climate change plus how likely climate change harmful scale")
-
-
-########################################
-# compute mean variables OVERALL (!)
-########################################
-### overall mean variables
-questionnaire_USA$mean_BiosphericValues  <- questionnaire_USA %>%
-  select(matches("^Biospheric")) %>%
-  rowMeans(na.rm = TRUE)
-
-questionnaire_USA$mean_RiskPerception  <- questionnaire_USA %>%
-  select(matches("^Risk")) %>%
-  rowMeans(na.rm = TRUE)
-
-questionnaire_USA$mean_PolicyItems  <- questionnaire_USA %>%
-  select(matches("^policyItems")) %>%
-  rowMeans(na.rm = TRUE)
-
-questionnaire_USA$mean_CCCprobability  <- questionnaire_USA %>%
-  select(matches("^concernClimate|^probabilityClimate")) %>%
-  rowMeans(na.rm = TRUE)
-
-
-
-psych::cor.plot(r = cor(questionnaire_USA[, str_detect(string = colnames(questionnaire_USA),
-                                                   pattern = "^mean")], 
-                                                   use = "pairwise.complete.obs"),
-                                                   upper = FALSE, xlas = 2, main = "mean scales")
-```
-
-
-
-
-
-## set up CAM data
-
-### for Germany
-
-Load CAM data
-
-```{r, message = FALSE}
-setwd("outputs")
-suppressMessages(read_file("CAMdata_Germany.txt") %>%
+### CAM data
+## t1
+read_file('data/t1/t1_climateLawStudy.txt') %>%
   # ... split it into lines ...
   str_split('\n') %>% first() %>%
-                   # ... filter empty rows ...
-                   discard(function(x) x == '') %>%
-                   discard(function(x) x == '\r')) -> dat_CAM_Germany
+  # ... filter empty rows ...
+  discard(function(x) x == '') -> dfCAM_t1
 
-
-raw_CAM_Germany <- list()
-for(i in 1:length(dat_CAM_Germany)){
-  raw_CAM_Germany[[i]] <- jsonlite::fromJSON(txt = dat_CAM_Germany[[i]])
+dfCAM_t1_list <- list()
+for(i in 1:length(dfCAM_t1)){
+  dfCAM_t1_list[[i]] <- jsonlite::fromJSON(txt = dfCAM_t1[[i]])
 }
+
+## t2
+read_file('data/t2/t2_climateLawStudy.txt') %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '') -> dfCAM_t2
+
+dfCAM_t2_list <- list()
+for(i in 1:length(dfCAM_t2)){
+  dfCAM_t2_list[[i]] <- jsonlite::fromJSON(txt = dfCAM_t2[[i]])
+}
+
+## data at t2 - cross-sectional (control group)
+read_file('data/t2_controlGroup/t2_climateLawStudy_controlGroup.txt') %>%
+  # ... split it into lines ...
+  str_split('\n') %>% first() %>%
+  # ... filter empty rows ...
+  discard(function(x) x == '') -> dfCAM_t2_controlGroup
+
+dfCAM_t2_controlGroup_list <- list()
+for(i in 1:length(dfCAM_t2_controlGroup)){
+  dfCAM_t2_controlGroup_list[[i]] <- jsonlite::fromJSON(txt = dfCAM_t2_controlGroup[[i]])
+}
+
+
+rm(dfCAM_t1)
+rm(dfCAM_t2)
+rm(dfCAM_t2_controlGroup)
+rm(i)
+
+
+### id data set to merge t1 and t2
+df_IDs <- read.csv(file = "data/Match_participantID.csv", encoding = "UTF-8", sep=";")
+df_IDs <- df_IDs[, c("participantID.wave1", "participantID.wave2")]
+df_IDs <- unique(df_IDs)
 ```
 
-Create CAM files, draw CAMs and compute network indicators
 
-```{r, message = FALSE}
-########################################
-# create CAM single files (nodes, connectors, merged)
-########################################
-CAMfiles_Germany <- create_CAMfiles(datCAM = raw_CAM_Germany, reDeleted = TRUE)
+# prepare data
 
-########################################
-# draw CAMs
-########################################
-CAMdrawn_Germany <- draw_CAM(dat_merged = CAMfiles_Germany[[3]],
-                     dat_nodes = CAMfiles_Germany[[1]],ids_CAMs = "all",
-                     plot_CAM = FALSE,
+## survey data
+
+Consistent missing values and naming of variables
+
+```{r}
+#| label: prepare survey data (missing values, names)
+#| echo: true
+#| warning: false
+
+### all missing values to NA
+## t1
+survey_p1_t1[survey_p1_t1 == ""] <- NA
+survey_p2_t1[survey_p2_t1 == ""] <- NA
+## t2
+survey_p1_t2[survey_p1_t2 == ""] <- NA
+survey_p2_t2[survey_p2_t2 == ""] <- NA
+## t2 control group
+survey_p1_t2_controlGroup[survey_p1_t2_controlGroup == ""] <- NA
+survey_p2_t2_controlGroup[survey_p2_t2_controlGroup == ""] <- NA
+
+
+### rename not consistently named variables
+colnames(survey_p1_t1)[colnames(survey_p1_t1) == "u"] <- "participantID"
+
+colnames(survey_p1_t2)[colnames(survey_p1_t2) == "u"] <- "participantID"
+
+colnames(survey_p1_t2_controlGroup)[colnames(survey_p1_t2_controlGroup) == "attention_check"] <- "attention.check"
+colnames(survey_p1_t2_controlGroup)[colnames(survey_p1_t2_controlGroup) == "u"] <- "participantID"
+
+
+### rename not consistently named variable labels
+# Finished
+survey_p1_t2$Finished <- ifelse(test = survey_p1_t2$Finished == "Wahr", yes = TRUE, no = FALSE) # german
+survey_p2_t2$Finished <- ifelse(test = survey_p2_t2$Finished == "Wahr", yes = TRUE, no = FALSE)
+
+survey_p1_t2_controlGroup$Finished <- ifelse(test = survey_p1_t2_controlGroup$Finished == "Wahr", yes = TRUE, no = FALSE)
+survey_p2_t2_controlGroup$Finished <- ifelse(test = survey_p2_t2_controlGroup$Finished == "Wahr", yes = TRUE, no = FALSE)
+
+# education
+survey_p1_t1$education[survey_p1_t1$education == "3" & !is.na(survey_p1_t1$education)] <- NA
+survey_p1_t2_controlGroup$education[survey_p1_t2_controlGroup$education == "kein Abschluss" & 
+                                      !is.na(survey_p1_t2_controlGroup$education)] <- "Kein Abschluss"
+
+### remove all variables not needed (mainly internal Qualtrics variables)
+remove_vars <- c("RecordedDate", "ResponseId", "RecipientLastName", "RecipientFirstName", "RecipientEmail", "ExternalReference", "DistributionChannel", "UserLanguage")
+
+## t1
+survey_p1_t1 <- survey_p1_t1[ , ! names(survey_p1_t1) %in% remove_vars]
+survey_p2_t1 <- survey_p2_t1[ , ! names(survey_p2_t1) %in% c(remove_vars, "u")] # u = NA
+
+## t2
+survey_p1_t2 <- survey_p1_t2[ , ! names(survey_p1_t2) %in% remove_vars]
+survey_p2_t2 <- survey_p2_t2[ , ! names(survey_p2_t2) %in% c(remove_vars, "u")] # u = NA
+
+## t2 control group
+survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup[ , ! names(survey_p1_t2_controlGroup) %in% remove_vars]
+survey_p2_t2_controlGroup <- survey_p2_t2_controlGroup[ , ! names(survey_p2_t2_controlGroup) %in% c(remove_vars, "u")] # u = NA
+
+rm(remove_vars)
+```
+
+
+Set variable types: 
+
+
+```{r}
+#| label: prepare survey data (variable types)
+#| echo: true
+#| warning: false
+
+
+### everything is a string - set variable types
+## t1 START ##
+#> part 1
+
+# str(survey_p1_t1)
+survey_p1_t1$Progress <- as.numeric(survey_p1_t1$Progress)
+
+survey_p1_t1$Duration..in.seconds. <- as.numeric(survey_p1_t1$Duration..in.seconds.)
+colnames(survey_p1_t1)[colnames(survey_p1_t1) == "Duration..in.seconds."] <- "durationSeconds"
+
+survey_p1_t1$Finished <- ifelse(test = survey_p1_t1$Finished == "True", yes = TRUE, no = FALSE)
+
+survey_p1_t1$LocationLongitude <- as.numeric(survey_p1_t1$LocationLongitude)
+survey_p1_t1$LocationLatitude <- as.numeric(survey_p1_t1$LocationLatitude)
+
+survey_p1_t1$consent <- ifelse(test = survey_p1_t1$consent  == "Ja1,Ja2", yes = 1, no = 0)  # to dummy variable
+
+survey_p1_t1$gender <- as.factor(x = survey_p1_t1$gender)
+
+survey_p1_t1$age <- as.numeric(survey_p1_t1$age)
+
+survey_p1_t1$education <- ordered(x = survey_p1_t1$education, levels = c("Kein Abschluss", "Obligatorische Schule", "Hochschulreife / Matur", "Bachelor/ Master/ Promotion (Dr. / PhD)"))
+
+
+#> part 2
+# str(survey_p2_t1)
+
+survey_p2_t1$Progress <- as.numeric(survey_p2_t1$Progress)
+
+survey_p2_t1$Duration..in.seconds. <- as.numeric(survey_p2_t1$Duration..in.seconds.)
+colnames(survey_p2_t1)[colnames(survey_p2_t1) == "Duration..in.seconds."] <- "durationSeconds"
+
+survey_p2_t1$Finished <- ifelse(test = survey_p2_t1$Finished == "True", yes = TRUE, no = FALSE)
+
+survey_p2_t1$LocationLongitude <- as.numeric(survey_p2_t1$LocationLongitude)
+survey_p2_t1$LocationLatitude <- as.numeric(survey_p2_t1$LocationLatitude)
+
+survey_p2_t1$vote.co2[str_detect(string = survey_p2_t1$vote.co2, pattern = "für ja")] <- 1 # to dummy variable
+survey_p2_t1$vote.co2[str_detect(string = survey_p2_t1$vote.co2, pattern = "für nein")] <- 0
+survey_p2_t1$vote.co2[str_detect(string = survey_p2_t1$vote.co2, pattern = "keine Angabe")] <- NA 
+survey_p2_t1$vote.co2 <- as.numeric(survey_p2_t1$vote.co2)
+colnames(survey_p2_t1)[colnames(survey_p2_t1) == "vote.co2"] <- "voteCo2"
+
+survey_p2_t1$intended.vote <- ifelse(test = survey_p2_t1$intended.vote == "Ja", yes = 1, no = 0) # to dummy variable
+colnames(survey_p2_t1)[colnames(survey_p2_t1) == "intended.vote"] <- "intendedVote"
+
+survey_p2_t1$rating_positive_1 <- as.numeric(survey_p2_t1$rating_positive_1)
+colnames(survey_p2_t1)[colnames(survey_p2_t1) == "rating_positive_1"] <- "ratingPositive"
+
+survey_p2_t1$rating_favor_1 <- as.numeric(survey_p2_t1$rating_favor_1)
+colnames(survey_p2_t1)[colnames(survey_p2_t1) == "rating_favor_1"] <- "ratingFavor"
+
+survey_p2_t1$politicalorientation_1 <- as.numeric(survey_p2_t1$politicalorientation_1)
+colnames(survey_p2_t1)[colnames(survey_p2_t1) == "politicalorientation_1"] <- "politicalOrientation"
+
+survey_p2_t1$Q48  <- ordered(x = survey_p2_t1$Q48, levels = c("sehr unrepräsentativ",
+                                                                                  "etwas unrepräsentativ",
+                                                                                  "ein bisschen unrepräsentativ",
+                                                                                  "weder unrepräsentativ noch repräsentativ",
+                                                                                  "ein bisschen repräsentativ",
+                                                                                  "eher repräsentativ",
+                                                                                  "sehr repräsentativ"))
+colnames(survey_p2_t1)[colnames(survey_p2_t1) == "Q48"] <- "representative"
+## t1 END ##
+
+
+
+## t2 START ##
+#> part 1
+# str(survey_p1_t2)
+
+survey_p1_t2$Progress <- as.numeric(survey_p1_t2$Progress)
+
+survey_p1_t2$Duration..in.seconds. <- as.numeric(survey_p1_t2$Duration..in.seconds.)
+colnames(survey_p1_t2)[colnames(survey_p1_t2) == "Duration..in.seconds."] <- "durationSeconds"
+
+survey_p1_t2$LocationLongitude <- as.numeric(survey_p1_t2$LocationLongitude)
+survey_p1_t2$LocationLatitude <- as.numeric(survey_p1_t2$LocationLatitude)
+
+survey_p1_t2$consent[str_detect(string = survey_p1_t2$consent, pattern = "Die Daten dürfen für wissenschaftliche Zwecke genutzt und die Ergebnisse der Studie in wissenschaftlichen Zeitschriften oder Büchern veröffentlicht werden")] <- 1 # to dummy variable
+survey_p1_t2$consent <- as.numeric(survey_p1_t2$consent)
+
+
+#> part 2
+
+# str(survey_p2_t2)
+survey_p2_t2$Progress <- as.numeric(survey_p2_t2$Progress)
+
+survey_p2_t2$Duration..in.seconds. <- as.numeric(survey_p2_t2$Duration..in.seconds.)
+colnames(survey_p2_t2)[colnames(survey_p2_t2) == "Duration..in.seconds."] <- "durationSeconds"
+
+survey_p2_t2$LocationLongitude <- as.numeric(survey_p2_t2$LocationLongitude)
+survey_p2_t2$LocationLatitude <- as.numeric(survey_p2_t2$LocationLatitude)
+
+survey_p2_t2$intended.vote[str_detect(string = survey_p2_t2$intended.vote, pattern = "Nein")] <- 0  # to dummy variable
+survey_p2_t2$intended.vote[str_detect(string = survey_p2_t2$intended.vote, pattern = "Ja")] <- 1
+survey_p2_t2$intended.vote <- as.numeric(survey_p2_t2$intended.vote)
+colnames(survey_p2_t2)[colnames(survey_p2_t2) == "intended.vote"] <- "intendedVote"
+
+survey_p2_t2$rating_positive_1 <- as.numeric(survey_p2_t2$rating_positive_1)
+colnames(survey_p2_t2)[colnames(survey_p2_t2) == "rating_positive_1"] <- "ratingPositive"
+
+survey_p2_t2$rating_favor_1 <- as.numeric(survey_p2_t2$rating_favor_1)
+colnames(survey_p2_t2)[colnames(survey_p2_t2) == "rating_favor_1"] <- "ratingFavor"
+
+survey_p2_t2$party_identification <- as.factor(x = survey_p2_t2$party_identification)
+colnames(survey_p2_t2)[colnames(survey_p2_t2) == "party_identification"] <- "partyIdentification"
+
+colnames(survey_p2_t2)[colnames(survey_p2_t2) == "party_identification_7_TEXT"] <- "partyIdentification_text"
+
+
+survey_p2_t2$cc_concerns_1 <- ordered(x = survey_p2_t2$cc_concerns_1, levels = c("stimme überhaupt nicht zu",
+                                                                                 "stimme nicht zu",
+                                                                                 "stimme eher nicht zu",
+                                                                                 "stimme eher zu",
+                                                                                 "stimme zu",
+                                                                                 "stimme voll und ganz zu"))
+survey_p2_t2$cc_concerns_2 <- ordered(x = survey_p2_t2$cc_concerns_2, levels = c("stimme überhaupt nicht zu",
+                                                                                 "stimme nicht zu",
+                                                                                 "stimme eher nicht zu",
+                                                                                 "stimme eher zu",
+                                                                                 "stimme zu",
+                                                                                 "stimme voll und ganz zu"))
+survey_p2_t2$cc_concerns_3 <- ordered(x = survey_p2_t2$cc_concerns_3, levels = c("stimme überhaupt nicht zu",
+                                                                                 "stimme nicht zu",
+                                                                                 "stimme eher nicht zu",
+                                                                                 "stimme eher zu",
+                                                                                 "stimme zu",
+                                                                                 "stimme voll und ganz zu"))
+survey_p2_t2$cc_concerns_4 <- ordered(x = survey_p2_t2$cc_concerns_4, levels = c("stimme überhaupt nicht zu",
+                                                                                 "stimme nicht zu",
+                                                                                 "stimme eher nicht zu",
+                                                                                 "stimme eher zu",
+                                                                                 "stimme zu",
+                                                                                 "stimme voll und ganz zu"))
+
+
+survey_p2_t2$engagement_1 <- ordered(x = survey_p2_t2$engagement_1, levels = c("Gar nicht",
+                                                                                "Für circa 1-2 Stunden im letzten Monat",
+                                                                                "Für circa 2-3 Stunden im letzten Monat",
+                                                                                "Für circa 3-4 Stunden im letzten Monat",
+                                                                                "Für circa 4-5 Stunden im letzten Monat",
+                                                                                "Für circa 5-6 Stunden im letzten Monat",
+                                                                                "Für circa 6-7 Stunden im letzten Monat", 
+                                                                                "Für mehr als 7 Stunden im letzten Monat"))
+survey_p2_t2$engagement_2 <- ordered(x = survey_p2_t2$engagement_2, levels = c("Gar nicht",
+                                                                                "Für circa 1-2 Stunden im letzten Monat",
+                                                                                "Für circa 2-3 Stunden im letzten Monat",
+                                                                                "Für circa 3-4 Stunden im letzten Monat",
+                                                                                "Für circa 4-5 Stunden im letzten Monat",
+                                                                                "Für circa 5-6 Stunden im letzten Monat",
+                                                                                "Für circa 6-7 Stunden im letzten Monat", 
+                                                                                "Für mehr als 7 Stunden im letzten Monat"))
+survey_p2_t2$engagement_3 <- ordered(x = survey_p2_t2$engagement_3, levels = c("Gar nicht",
+                                                                                "Für circa 1-2 Stunden im letzten Monat",
+                                                                                "Für circa 2-3 Stunden im letzten Monat",
+                                                                                "Für circa 3-4 Stunden im letzten Monat",
+                                                                                "Für circa 4-5 Stunden im letzten Monat",
+                                                                                "Für circa 5-6 Stunden im letzten Monat",
+                                                                                "Für circa 6-7 Stunden im letzten Monat", 
+                                                                                "Für mehr als 7 Stunden im letzten Monat"))
+survey_p2_t2$engagement_4 <- ordered(x = survey_p2_t2$engagement_4, levels = c("Gar nicht",
+                                                                                "Für circa 1-2 Stunden im letzten Monat",
+                                                                                "Für circa 2-3 Stunden im letzten Monat",
+                                                                                "Für circa 3-4 Stunden im letzten Monat",
+                                                                                "Für circa 4-5 Stunden im letzten Monat",
+                                                                                "Für circa 5-6 Stunden im letzten Monat",
+                                                                                "Für circa 6-7 Stunden im letzten Monat", 
+                                                                                "Für mehr als 7 Stunden im letzten Monat"))
+survey_p2_t2$engagement_5  <- ordered(x = survey_p2_t2$engagement_5, levels = c("Gar nicht",
+                                                                                "Für circa 1-2 Stunden im letzten Monat",
+                                                                                "Für circa 2-3 Stunden im letzten Monat",
+                                                                                "Für circa 3-4 Stunden im letzten Monat",
+                                                                                "Für circa 4-5 Stunden im letzten Monat",
+                                                                                "Für circa 5-6 Stunden im letzten Monat",
+                                                                                "Für circa 6-7 Stunden im letzten Monat", 
+                                                                                "Für mehr als 7 Stunden im letzten Monat"))
+
+
+colnames(survey_p2_t2)[colnames(survey_p2_t2) == "media_6_TEXT"] <- "media1_text"
+colnames(survey_p2_t2)[colnames(survey_p2_t2) == "media_7_TEXT"] <- "media2_text"
+
+survey_p2_t2$repräsentativ  <- ordered(x = survey_p2_t2$repräsentativ, levels = c("sehr unrepräsentativ",
+                                                                                  "etwas unrepräsentativ",
+                                                                                  "ein bisschen unrepräsentativ",
+                                                                                  "weder unrepräsentativ noch repräsentativ",
+                                                                                  "ein bisschen repräsentativ",
+                                                                                  "eher repräsentativ",
+                                                                                  "sehr repräsentativ"))
+colnames(survey_p2_t2)[colnames(survey_p2_t2) == "repräsentativ"] <- "representative"
+## t2 END ##
+
+
+## t2 control group START ##
+#> part 1
+
+# str(survey_p1_t2_controlGroup)
+survey_p1_t2_controlGroup$Progress <- as.numeric(survey_p1_t2_controlGroup$Progress)
+
+survey_p1_t2_controlGroup$Duration..in.seconds. <- as.numeric(survey_p1_t2_controlGroup$Duration..in.seconds.)
+colnames(survey_p1_t2_controlGroup)[colnames(survey_p1_t2_controlGroup) == "Duration..in.seconds."] <- "durationSeconds"
+
+# unique(survey_p1_t2_controlGroup$consent) 
+### You could only continue if you gave consent.. so we only have people that gave their consent in the dataset
+survey_p1_t2_controlGroup$consent <- 1
+
+survey_p1_t2_controlGroup$gender <- as.factor(x = survey_p1_t2_controlGroup$gender)
+
+survey_p1_t2_controlGroup$age <- as.numeric(survey_p1_t2_controlGroup$age)
+
+survey_p1_t2_controlGroup$education <- ordered(x = survey_p1_t2_controlGroup$education, levels = c("Kein Abschluss", "Obligatorische Schule", "Hochschulreife / Matur", "Bachelor/ Master/ Promotion (Dr. / PhD)"))
+
+#> part 2
+# str(survey_p2_t2_controlGroup)
+
+survey_p2_t2_controlGroup$Progress <- as.numeric(survey_p2_t2_controlGroup$Progress)
+
+survey_p2_t2_controlGroup$Duration..in.seconds. <- as.numeric(survey_p2_t2_controlGroup$Duration..in.seconds.)
+colnames(survey_p2_t2_controlGroup)[colnames(survey_p2_t2_controlGroup) == "Duration..in.seconds."] <- "durationSeconds"
+
+survey_p2_t2_controlGroup$intended_vote[str_detect(string = survey_p2_t2_controlGroup$intended_vote, pattern = "Nein")] <- 0  # to dummy variable
+survey_p2_t2_controlGroup$intended_vote[str_detect(string = survey_p2_t2_controlGroup$intended_vote, pattern = "Ja")] <- 1
+survey_p2_t2_controlGroup$intended_vote <- as.numeric(survey_p2_t2_controlGroup$intended_vote)
+colnames(survey_p2_t2_controlGroup)[colnames(survey_p2_t2_controlGroup) == "intended_vote"] <- "intendedVote"
+
+survey_p2_t2_controlGroup$rating_positive_1 <- as.numeric(survey_p2_t2_controlGroup$rating_positive_1)
+colnames(survey_p2_t2_controlGroup)[colnames(survey_p2_t2_controlGroup) == "rating_positive_1"] <- "ratingPositive"
+
+survey_p2_t2_controlGroup$rating_favor_1 <- as.numeric(survey_p2_t2_controlGroup$rating_favor_1)
+colnames(survey_p2_t2_controlGroup)[colnames(survey_p2_t2_controlGroup) == "rating_favor_1"] <- "ratingFavor"
+
+survey_p2_t2_controlGroup$politicalorientation_1 <- as.numeric(survey_p2_t2_controlGroup$politicalorientation_1)
+colnames(survey_p2_t2_controlGroup)[colnames(survey_p2_t2_controlGroup) == "politicalorientation_1"] <- "politicalOrientation"
+
+survey_p2_t2_controlGroup$party_identification <- as.factor(x = survey_p2_t2_controlGroup$party_identification)
+colnames(survey_p2_t2_controlGroup)[colnames(survey_p2_t2_controlGroup) == "party_identification"] <- "partyIdentification"
+
+colnames(survey_p2_t2_controlGroup)[colnames(survey_p2_t2_controlGroup) == "party_identification_7_TEXT"] <- "partyIdentification_text"
+
+
+survey_p2_t2_controlGroup$cc_concerns_1 <- ordered(x = survey_p2_t2_controlGroup$cc_concerns_1, levels = c("stimme überhaupt nicht zu",
+                                                                                 "stimme nicht zu",
+                                                                                 "stimme eher nicht zu",
+                                                                                 "stimme eher zu",
+                                                                                 "stimme zu",
+                                                                                 "stimme voll und ganz zu"))
+survey_p2_t2_controlGroup$cc_concerns_2 <- ordered(x = survey_p2_t2_controlGroup$cc_concerns_2, levels = c("stimme überhaupt nicht zu",
+                                                                                 "stimme nicht zu",
+                                                                                 "stimme eher nicht zu",
+                                                                                 "stimme eher zu",
+                                                                                 "stimme zu",
+                                                                                 "stimme voll und ganz zu"))
+survey_p2_t2_controlGroup$cc_concerns_3 <- ordered(x = survey_p2_t2_controlGroup$cc_concerns_3, levels = c("stimme überhaupt nicht zu",
+                                                                                 "stimme nicht zu",
+                                                                                 "stimme eher nicht zu",
+                                                                                 "stimme eher zu",
+                                                                                 "stimme zu",
+                                                                                 "stimme voll und ganz zu"))
+survey_p2_t2_controlGroup$cc_concerns_4 <- ordered(x = survey_p2_t2_controlGroup$cc_concerns_4, levels = c("stimme überhaupt nicht zu",
+                                                                                 "stimme nicht zu",
+                                                                                 "stimme eher nicht zu",
+                                                                                 "stimme eher zu",
+                                                                                 "stimme zu",
+                                                                                 "stimme voll und ganz zu"))
+
+
+survey_p2_t2_controlGroup$engagement_1 <- ordered(x = survey_p2_t2_controlGroup$engagement_1, levels = c("Gar nicht",
+                                                                                "Für circa 1-2 Stunden im letzten Monat",
+                                                                                "Für circa 2-3 Stunden im letzten Monat",
+                                                                                "Für circa 3-4 Stunden im letzten Monat",
+                                                                                "Für circa 4-5 Stunden im letzten Monat",
+                                                                                "Für circa 5-6 Stunden im letzten Monat",
+                                                                                "Für circa 6-7 Stunden im letzten Monat", 
+                                                                                "Für mehr als 7 Stunden im letzten Monat"))
+survey_p2_t2_controlGroup$engagement_2 <- ordered(x = survey_p2_t2_controlGroup$engagement_2, levels = c("Gar nicht",
+                                                                                "Für circa 1-2 Stunden im letzten Monat",
+                                                                                "Für circa 2-3 Stunden im letzten Monat",
+                                                                                "Für circa 3-4 Stunden im letzten Monat",
+                                                                                "Für circa 4-5 Stunden im letzten Monat",
+                                                                                "Für circa 5-6 Stunden im letzten Monat",
+                                                                                "Für circa 6-7 Stunden im letzten Monat", 
+                                                                                "Für mehr als 7 Stunden im letzten Monat"))
+survey_p2_t2_controlGroup$engagement_3 <- ordered(x = survey_p2_t2_controlGroup$engagement_3, levels = c("Gar nicht",
+                                                                                "Für circa 1-2 Stunden im letzten Monat",
+                                                                                "Für circa 2-3 Stunden im letzten Monat",
+                                                                                "Für circa 3-4 Stunden im letzten Monat",
+                                                                                "Für circa 4-5 Stunden im letzten Monat",
+                                                                                "Für circa 5-6 Stunden im letzten Monat",
+                                                                                "Für circa 6-7 Stunden im letzten Monat", 
+                                                                                "Für mehr als 7 Stunden im letzten Monat"))
+survey_p2_t2_controlGroup$engagement_4 <- ordered(x = survey_p2_t2_controlGroup$engagement_4, levels = c("Gar nicht",
+                                                                                "Für circa 1-2 Stunden im letzten Monat",
+                                                                                "Für circa 2-3 Stunden im letzten Monat",
+                                                                                "Für circa 3-4 Stunden im letzten Monat",
+                                                                                "Für circa 4-5 Stunden im letzten Monat",
+                                                                                "Für circa 5-6 Stunden im letzten Monat",
+                                                                                "Für circa 6-7 Stunden im letzten Monat", 
+                                                                                "Für mehr als 7 Stunden im letzten Monat"))
+survey_p2_t2_controlGroup$engagement_5  <- ordered(x = survey_p2_t2_controlGroup$engagement_5, levels = c("Gar nicht",
+                                                                                "Für circa 1-2 Stunden im letzten Monat",
+                                                                                "Für circa 2-3 Stunden im letzten Monat",
+                                                                                "Für circa 3-4 Stunden im letzten Monat",
+                                                                                "Für circa 4-5 Stunden im letzten Monat",
+                                                                                "Für circa 5-6 Stunden im letzten Monat",
+                                                                                "Für circa 6-7 Stunden im letzten Monat", 
+                                                                                "Für mehr als 7 Stunden im letzten Monat"))
+
+
+colnames(survey_p2_t2_controlGroup)[colnames(survey_p2_t2_controlGroup) == "media_6_TEXT"] <- "media1_text"
+colnames(survey_p2_t2_controlGroup)[colnames(survey_p2_t2_controlGroup) == "media_7_TEXT"] <- "media2_text"
+
+survey_p2_t2_controlGroup$repräsentativ  <- ordered(x = survey_p2_t2_controlGroup$repräsentativ, levels = c("sehr unrepräsentativ",
+                                                                                                            "etwas unrepräsentativ",
+                                                                                                            "ein bisschen unrepräsentativ",
+                                                                                                            "weder unrepräsentativ noch repräsentativ",
+                                                                                                            "ein bisschen repräsentativ",
+                                                                                                            "eher repräsentativ",
+                                                                                                            "sehr repräsentativ"))
+colnames(survey_p2_t2_controlGroup)[colnames(survey_p2_t2_controlGroup) == "repräsentativ"] <- "representative"
+## t2 control group END ##
+```
+
+
+Remove given test ID and missing IDs: 
+
+```{r}
+#| label: remove missing IDs
+#| echo: true
+#| warning: false
+
+### remove test IDs
+## t1
+# ID was removed manually before study start
+
+## t2
+survey_p1_t2 <- survey_p1_t2 %>% filter(!participantID=="ddde09e8ac4604983c2e313df3672338")
+survey_p2_t2 <- survey_p2_t2 %>% filter(!participantID=="ddde09e8ac4604983c2e313df3672338")
+
+## t2 control group
+survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup %>% filter(!participantID=="523aa001f490a2e04b04eac38f3bf6f9")
+survey_p2_t2_controlGroup <- survey_p2_t2_controlGroup %>% filter(!participantID=="523aa001f490a2e04b04eac38f3bf6f9")
+
+### remove missing IDs
+## t1
+sum(is.na(survey_p1_t1$participantID))
+survey_p1_t1 <- survey_p1_t1[! is.na(survey_p1_t1$participantID), ]
+sum(is.na(survey_p2_t1$participantID))
+survey_p2_t1 <- survey_p2_t1[! is.na(survey_p2_t1$participantID), ]
+## t2
+sum(is.na(survey_p1_t2$participantID))
+survey_p1_t2 <- survey_p1_t2[! is.na(survey_p1_t2$participantID), ]
+sum(is.na(survey_p2_t2$participantID))
+survey_p2_t2 <- survey_p2_t2[! is.na(survey_p2_t2$participantID), ]
+## t2 control group
+sum(is.na(survey_p1_t2_controlGroup$participantID))
+survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup[! is.na(survey_p1_t2_controlGroup$participantID), ]
+sum(is.na(survey_p2_t2_controlGroup$participantID))
+survey_p2_t2_controlGroup <- survey_p2_t2_controlGroup[! is.na(survey_p2_t2_controlGroup$participantID), ]
+```
+
+## CAM data
+
+create and draw CAMs and remove missing and test ids:
+
+```{r}
+#| label: create CAM data and remove missing ids
+#| echo: true
+#| warning: false
+
+### create CAM files
+## t1
+CAM_files_t1 <- create_CAMfiles(datCAM = dfCAM_t1_list, reDeleted = TRUE, verbose = FALSE)
+## t2
+CAM_files_t2 <- create_CAMfiles(datCAM = dfCAM_t2_list, reDeleted = TRUE, verbose = FALSE)
+## t2 control group
+CAM_files_t2_controlGroup <- create_CAMfiles(datCAM = dfCAM_t2_controlGroup_list, reDeleted = TRUE, verbose = FALSE)
+
+rm(dfCAM_t1_list)
+rm(dfCAM_t2_list)
+rm(dfCAM_t2_controlGroup_list)
+
+### remove CAMs with no valid ID
+## t1
+table(CAM_files_t1[[1]]$participantCAM[nchar(CAM_files_t1[[1]]$participantCAM) != 32])
+CAM_files_t1[[1]] <- CAM_files_t1[[1]][nchar(CAM_files_t1[[1]]$participantCAM) == 32, ]
+CAM_files_t1[[3]] <- CAM_files_t1[[3]][nchar(CAM_files_t1[[3]]$participantCAM.x) == 32, ]
+## t2
+table(CAM_files_t2[[1]]$participantCAM[nchar(CAM_files_t2[[1]]$participantCAM) != 32])
+CAM_files_t2[[1]] <- CAM_files_t2[[1]][nchar(CAM_files_t2[[1]]$participantCAM) == 32, ]
+CAM_files_t2[[3]] <- CAM_files_t2[[3]][nchar(CAM_files_t2[[3]]$participantCAM.x) == 32, ]
+## t2 control group
+table(CAM_files_t2_controlGroup[[1]]$participantCAM[nchar(CAM_files_t2_controlGroup[[1]]$participantCAM) != 32])
+CAM_files_t2_controlGroup[[1]] <- CAM_files_t2_controlGroup[[1]][nchar(CAM_files_t2_controlGroup[[1]]$participantCAM) == 32, ]
+CAM_files_t2_controlGroup[[3]] <- CAM_files_t2_controlGroup[[3]][nchar(CAM_files_t2_controlGroup[[3]]$participantCAM.x) == 32, ]
+
+
+### draw CAMs
+## t1
+CAMdrawn_t1 <- draw_CAM(dat_merged = CAM_files_t1[[3]],
+                     dat_nodes = CAM_files_t1[[1]],ids_CAMs = "all", plot_CAM = FALSE,
                      useCoordinates = TRUE,
                      relvertexsize = 3,
                      reledgesize = 1)
-
-########################################
-# draw CAMs
-########################################
-tmp_microIndicator <- c("Klimawandel")
-networkIndicators_Germany <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_Germany, 
-                                           micro_degree = tmp_microIndicator, 
-                                           micro_valence = tmp_microIndicator, 
-                                           micro_centr_clo = tmp_microIndicator, 
-                                           micro_transitivity = tmp_microIndicator, 
-                                           largestClique = FALSE)
-
-
-########################################
-# wordlists
-########################################
-CAMwordlist_Germany <- create_wordlist(
-  dat_nodes =  CAMfiles_Germany[[1]],
-  dat_merged =  CAMfiles_Germany[[3]],
-  order = "frequency",
-  splitByValence = FALSE,
-  comments = TRUE,
-  raterSubsetWords = NULL,
-  rater = FALSE
-)
-
-DT::datatable(CAMwordlist_Germany, options = list(pageLength = 5)) 
+## t2
+CAMdrawn_t2 <- draw_CAM(dat_merged = CAM_files_t2[[3]],
+                     dat_nodes = CAM_files_t2[[1]],ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
+## t2 control group
+CAMdrawn_t2_controlGroup <- draw_CAM(dat_merged = CAM_files_t2_controlGroup[[3]],
+                     dat_nodes = CAM_files_t2_controlGroup[[1]],ids_CAMs = "all", plot_CAM = FALSE,
+                     useCoordinates = TRUE,
+                     relvertexsize = 3,
+                     reledgesize = 1)
 ```
 
-### translate to English
+# clean data
+
+
+## CAM data
+
+**identify fake CAMs** (only deleted if "global_removeFakeCAMs"=TRUE)
+
+1) load German dictionary
 
 ```{r}
-raw_CAM_Germany_translated <- raw_CAM_Germany
-CAMfiles_Germany_translated <- CAMfiles_Germany
+#| label: fake CAMs - load dictionary
+#| echo: true
+#| warning: false
+
+### load German dictionary
+setwd("data dictionaries")
+## german
+dict_german <- readr::read_table(file = "de_frami.txt", col_names = TRUE)
+
+dict_german <- str_subset(string = dict_german$words, pattern = "/")
+dict_german <- str_remove_all(string = dict_german, pattern = "/.*$")
+dict_german <- str_subset(string = dict_german, pattern = "^[[:alpha:]]{2,}")
+dict_german <- c(dict_german, "globale", "KOGNITIVE", "Modelle", "Nutzeneffekte", "Faktoren", "Soziale")
+dict_german <- tolower(x = dict_german)
+dict_german <- dict_german[nchar(x = dict_german) >= 5]
+dict_german <- unique(dict_german)
 
 
-### load .xlsx with translations
-translatedWords <- xlsx::read.xlsx2(file = "data/Deutsche CAMs_übersetzt.xlsx", sheetIndex = 2)
-translatedWords[158,]
-translatedWords <- translatedWords[-158,]
-### load protocol
-protocol <- rjson::fromJSON(file = "data/protocol_translation.txt")
-
-CAMfiles_Germany_translated[[1]]$text <- str_trim(string = CAMfiles_Germany_translated[[1]]$text, side = "both")
-
-tmp_out <- overwriteTextNodes(protocolDat = protocol,
-                                nodesDat = CAMfiles_Germany_translated[[1]])
-CAMfiles_Germany_translated[[1]] <- tmp_out[[1]]
+dict_german <- c("nur", "elektro", "teuerung", "klimaschutz", "klima", "co2", "subventionen", "Stromfresser", "Landwirtschaft", "veränderungen","stromfresser", "Treibhausgase","Stromversorgung", "Veränderungen", "Subventionen","Klimaneutralität", "Umweltschutz", "Energiesparen", "erneuerbare", "Strom", dict_german)
+dict_german <- unique(dict_german)
 
 
+## to swiss german
+dict_german <- str_replace_all(string = dict_german, pattern = "ß", replacement = "ss")
+```
+2) check if at least one word within the dictionary can be found in a CAM
 
 
+```{r}
+#| label: fake CAMs - apply dictionary approach
+#| echo: true
+#| warning: false
 
+### run dictionary approach
+## identify fake CAMs using a dictionary
+CAMdrawn_t1_fake <- identifyFakeCAMs(CAMdrawn = CAMdrawn_t1)
+CAMdrawn_t2_fake <- identifyFakeCAMs(CAMdrawn = CAMdrawn_t2)
+CAMdrawn_t2_controlGroup_fake <-
+  identifyFakeCAMs(CAMdrawn = CAMdrawn_t2_controlGroup)
 
-for(i in 1:length(raw_CAM_Germany_translated)){
-  ## get summarized words
-  tmp_nodes <- CAMfiles_Germany_translated[[1]][CAMfiles_Germany_translated[[1]]$CAM == unique(CAMfiles_Germany_translated[[1]]$CAM)[i],]
-    tmpWords_summarized <- str_remove_all(string = tmp_nodes$text_summarized, pattern = "_positive$|_negative$|_neutral$|_ambivalent$")
+if (global_saveFakeCAMs) {
+  # to check all so identified CAMs manually
+  setwd("checkFakeCAMs")
+  saveRDS(CAMdrawn_t1, file = "CAMdrawn_t1.rds")
+  saveRDS(CAMdrawn_t2, file = "CAMdrawn_t2.rds")
+  saveRDS(CAMdrawn_t2_controlGroup, file = "CAMdrawn_t2_controlGroup.rds")
   
-  
-  if(length(tmpWords_summarized) != sum(raw_CAM_Germany_translated[[i]]$nodes$isActive)){
-    print(i)
-    print("ERROR")
-    break
-  }else{
-      raw_CAM_Germany_translated[[i]]$nodes$text[raw_CAM_Germany_translated[[i]]$nodes$isActive] <- tmpWords_summarized
-  }
-  
-  ## remove white spaces
-  raw_CAM_Germany_translated[[i]]$nodes$text <- str_trim(string = raw_CAM_Germany_translated[[i]]$nodes$text, side = "both")
-   
-  # tmpWords_raw <- raw_CAM_Germany_translated[[i]]$nodes$text[raw_CAM_Germany_translated[[i]]$nodes$isActive]
-  # tmpWords[!tmpWords %in% tmpWords_summarized]
-  
-  
-  tmp <- raw_CAM_Germany_translated[[i]]$nodes$text[raw_CAM_Germany_translated[[i]]$nodes$isActive & !raw_CAM_Germany_translated[[i]]$nodes$text %in% translatedWords$Words]
+  saveRDS(CAMdrawn_t1_fake, file = "CAMdrawn_t1_fake.rds")
+  saveRDS(CAMdrawn_t2_fake, file = "CAMdrawn_t2_fake.rds")
+  saveRDS(CAMdrawn_t2_controlGroup_fake, file = "CAMdrawn_t2_controlGroup_fake.rds")
+}
+```
 
-  if(length(tmp) > 0){
-    print(i)
-    print(tmp)
-    break
-  }else{
+
+> fake CAMs were also visually checked in additional files (see folder "checkFakeCAMs")
+
+
+3) remove all so identified fake CAMs (only deleted if "global_removeFakeCAMs"=TRUE)
+
+```{r}
+#| label: fake CAMs - remove identified fake CAMs
+#| echo: true
+#| warning: false
+
+### remove identified fake CAMs
+
+CAMdrawn_t1_fake$ID_fakeCAMs <-
+  CAMdrawn_t1_fake$ID_fakeCAMs[!CAMdrawn_t1_fake$ID_fakeCAMs %in%
+                                 c(
+                                   "18bb2e604239a661fe6e620fb3c19bfd",
+                                   "674e92e1ad74d74b5eae470bd364556d",
+                                   "90504081eb1ac2bf8761805ea2511948",
+                                   "60ac1c4f664ed5acd4abde2641d83858"
+                                 )]
+
+
+length(CAMdrawn_t1_fake$ID_fakeCAMs) / length(CAMdrawn_t1)
+length(CAMdrawn_t2_fake$ID_fakeCAMs) / length(CAMdrawn_t2)
+length(CAMdrawn_t2_controlGroup_fake$ID_fakeCAMs) / length(CAMdrawn_t2_controlGroup)
+
+
+if (global_removeFakeCAMs) {
+  #> t1
+  CAMdrawn_t1_clean <-
+    CAMdrawn_t1[!names(CAMdrawn_t1) %in% CAMdrawn_t1_fake$ID_fakeCAMs]
+  
+  #> t2
+  CAMdrawn_t2_clean <-
+    CAMdrawn_t2[!names(CAMdrawn_t2) %in% CAMdrawn_t2_fake$ID_fakeCAMs]
+  
+  #> t2 control group
+  CAMdrawn_t2_controlGroup_clean <-
+    CAMdrawn_t2_controlGroup[!names(CAMdrawn_t2_controlGroup) %in% CAMdrawn_t2_controlGroup_fake$ID_fakeCAMs]
+  
+  rm(CAMdrawn_t1_fake)
+  rm(CAMdrawn_t2_fake)
+  rm(CAMdrawn_t2_controlGroup_fake)
+}
+```
+
+### compute network indicators
+
+```{r}
+#| label: compute network indicators
+#| echo: true
+#| warning: false
+
+### CAM network indicators
+if(global_removeFakeCAMs){
+CAM_indicators_t1 <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_t1_clean,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+
+CAM_indicators_t2 <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_t2_clean,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+
+CAM_indicators_t2_controlGroup <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_t2_controlGroup_clean,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+}else{
+  CAM_indicators_t1 <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_t1,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+
+CAM_indicators_t2 <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_t2,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+
+CAM_indicators_t2_controlGroup <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_t2_controlGroup,
+                                       micro_degree = c("Klimagesetz"),
+                                       micro_valence = c("Klimagesetz"),
+                                       micro_centr_clo = c("Klimagesetz"))
+}
+
+
+# !!!
+sum(is.na(CAM_indicators_t1$valence_micro_Klimagesetz))
+sum(is.na(CAM_indicators_t2$valence_micro_Klimagesetz))
+sum(is.na(CAM_indicators_t2_controlGroup$valence_micro_Klimagesetz))
+```
+
+
+
+
+## survey data
+
+Keep only persons how passed the attention check: 
+
+```{r}
+#| label: attention check
+#| echo: true
+#| warning: false
+
+sum(survey_p1_t1$attention.check != "Tennisspielen", na.rm = TRUE)
+survey_p1_t1 <- survey_p1_t1[survey_p1_t1$attention.check == "Tennisspielen", ]
+
+sum(survey_p1_t2$attention.check != "Tennisspielen", na.rm = TRUE)
+survey_p1_t2 <- survey_p1_t2[survey_p1_t2$attention.check == "Tennisspielen", ]
+
+sum(survey_p1_t2_controlGroup$attention.check != "Tennisspielen", na.rm = TRUE)
+survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup[survey_p1_t2_controlGroup$attention.check == "Tennisspielen", ]
+```
+
+Before data is cleaned according to different criteria number of persons who participated in study:
+
+```{r}
+#| label: number of persons who participated
+#| echo: true
+#| warning: false
+
+## t1
+nrow(survey_p1_t1)
+nrow(survey_p2_t1)
+## t2
+nrow(survey_p1_t2)
+nrow(survey_p2_t2)
+## t2 control group
+nrow(survey_p1_t2_controlGroup)
+nrow(survey_p2_t2_controlGroup)
+```
+
+
+**participants are flagged according to different criteria:** (only deleted if any of "global_removeX"=TRUE)
+
+
+1) flag participants marked as spam (internal variable by Qualtrics):
+
+
+```{r}
+#| label: flagged as spam
+#| echo: true
+#| warning: false
+
+## t1
+sum(survey_p1_t1$Status == "Spam", na.rm = TRUE)
+survey_p1_t1$check_SPAM <- ifelse(test = survey_p1_t1$Status == "Spam", yes = TRUE, no = FALSE)
+
+sum(survey_p2_t1$Status == "Spam", na.rm = TRUE)
+survey_p2_t1$check_SPAM <- ifelse(test = survey_p2_t1$Status == "Spam", yes = TRUE, no = FALSE)
+
+
+## t2
+sum(survey_p1_t2$Status == "Spam", na.rm = TRUE)
+survey_p1_t2$check_SPAM <- ifelse(test = survey_p1_t2$Status == "Spam", yes = TRUE, no = FALSE)
+
+sum(survey_p2_t2$Status == "Spam", na.rm = TRUE)
+survey_p2_t2$check_SPAM <- ifelse(test = survey_p2_t2$Status == "Spam", yes = TRUE, no = FALSE)
+
+
+## t2 control group
+sum(survey_p1_t2_controlGroup$Status == "Spam", na.rm = TRUE)
+survey_p1_t2_controlGroup$check_SPAM <- ifelse(test = survey_p1_t2_controlGroup$Status == "Spam", yes = TRUE, no = FALSE)
+
+sum(survey_p2_t2_controlGroup$Status == "Spam", na.rm = TRUE)
+survey_p2_t2_controlGroup$check_SPAM <- ifelse(test = survey_p2_t2_controlGroup$Status == "Spam", yes = TRUE, no = FALSE)
+```
+
+2) flag participants with multiple identical IPs (if IPs are greater / equal then `r global_removeIPs_num`):
+
+
+```{r}
+#| label: multiple IPs
+#| echo: true
+#| warning: false
+
+sort(table(survey_p1_t1$IPAddress), decreasing = TRUE)[1:10]
+
+## t1
+sum(table(survey_p1_t1$IPAddress) >= global_removeIPs_num) # number of IPs greater / equal then "global_removeIPs_num"
+tmp_IP <-
+  names(table(survey_p1_t1$IPAddress))[table(survey_p1_t1$IPAddress) >= global_removeIPs_num]
+sum(survey_p1_t1$IPAddress %in% tmp_IP) # number of participants (rows) greater / equal then "global_removeIPs_num"
+survey_p1_t1$check_IP <- survey_p1_t1$IPAddress %in% tmp_IP
+
+sum(table(survey_p2_t1$IPAddress) >= global_removeIPs_num)
+tmp_IP <-
+  names(table(survey_p2_t1$IPAddress))[table(survey_p2_t1$IPAddress) >= global_removeIPs_num]
+sum(survey_p2_t1$IPAddress %in% tmp_IP)
+survey_p2_t1$check_IP <- survey_p2_t1$IPAddress %in% tmp_IP
+
+
+## t2
+sum(table(survey_p1_t2$IPAddress) >= global_removeIPs_num)
+tmp_IP <-
+  names(table(survey_p1_t2$IPAddress))[table(survey_p1_t2$IPAddress) >= global_removeIPs_num]
+sum(survey_p1_t2$IPAddress %in% tmp_IP)
+survey_p1_t2$check_IP <- survey_p1_t2$IPAddress %in% tmp_IP
+
+sum(table(survey_p2_t2$IPAddress) >= global_removeIPs_num)
+tmp_IP <-
+  names(table(survey_p2_t2$IPAddress))[table(survey_p2_t2$IPAddress) >= global_removeIPs_num]
+sum(survey_p2_t2$IPAddress %in% tmp_IP)
+survey_p2_t2$check_IP <- survey_p2_t2$IPAddress %in% tmp_IP
+
+
+## t2 control group
+sum(table(survey_p1_t2_controlGroup$IPAddress) >= global_removeIPs_num)
+tmp_IP <-
+  names(table(survey_p1_t2_controlGroup$IPAddress))[table(survey_p1_t2_controlGroup$IPAddress) >= global_removeIPs_num]
+sum(survey_p1_t2_controlGroup$IPAddress %in% tmp_IP)
+survey_p1_t2_controlGroup$check_IP <- survey_p1_t2_controlGroup$IPAddress %in% tmp_IP
+
+sum(table(survey_p2_t2_controlGroup$IPAddress) >= global_removeIPs_num)
+tmp_IP <-
+  names(table(survey_p2_t2_controlGroup$IPAddress))[table(survey_p2_t2_controlGroup$IPAddress) >= global_removeIPs_num]
+sum(survey_p2_t2_controlGroup$IPAddress %in% tmp_IP)
+survey_p2_t2_controlGroup$check_IP <- survey_p2_t2_controlGroup$IPAddress %in% tmp_IP
+
+
+rm(tmp_IP)
+```
+
+
+overview of percentage of removed data in case of "if IPs are greater / equal then 2, 3, 4" criterion: 
+
+
+```{r}
+#| label: overview multiple IPs
+#| echo: true
+#| warning: false
+
+mat <- matrix(data = NA, nrow = 4, ncol = 3)
+
+for(i in 2:5){
+  index <- i - 1
+  mat[index, 1] <- paste0("greater / equal then ", i)
+  # t1 part 1
+  tmp_IP <-
+  names(table(survey_p1_t1$IPAddress))[table(survey_p1_t1$IPAddress) >= i]
+  mat[index, 2] <- round(x = sum(survey_p1_t1$IPAddress %in% tmp_IP) / nrow(survey_p1_t1) * 100, digits = 0)
+  # t2 part 2
+  tmp_IP <-
+  names(table(survey_p2_t2$IPAddress))[table(survey_p2_t2$IPAddress) >= i]
+  mat[index, 3] <- round(x = sum(survey_p2_t2$IPAddress %in% tmp_IP) / nrow(survey_p2_t2) * 100, digits = 0)
+}
+
+mat <- as.data.frame(mat)
+colnames(mat) <- c("criterion", "t1", "t2")
+
+knitr::kable(x = mat)
+
+
+rm(tmp_IP)
+rm(i)
+rm(index)
+rm(mat)
+```
+
+
+> we decided to remove participants when IPs are greater / equal then 3
+
+
+
+### draw geolocations of participants
+
+```{r}
+#| label: draw geolocation
+#| echo: true
+#| warning: false
+
+## t1
+tmp <- survey_p2_t1[!is.na(survey_p2_t1$LocationLongitude) & !is.na(survey_p2_t1$LocationLatitude), ]
+mapview::mapview(tmp, xcol = "LocationLongitude", ycol = "LocationLatitude", crs = 4269, grid = FALSE)
+
+## t2
+tmp <- survey_p2_t2[!is.na(survey_p2_t2$LocationLongitude) & !is.na(survey_p2_t2$LocationLatitude), ]
+mapview::mapview(tmp, xcol = "LocationLongitude", ycol = "LocationLatitude", crs = 4269, grid = FALSE)
+rm(tmp)
+```
+
+
+### apply filters (remove participants)
+
+Both filters (spam, multiple IPs) are not independent: 
+
+```{r}
+#| label: dependency filters
+#| echo: true
+#| warning: false
+
+table(survey_p1_t1$check_SPAM, survey_p1_t1$check_IP)
+chisq.test(survey_p1_t1$check_SPAM, survey_p1_t1$check_IP)
+```
+
+
+1) remove participants flagged as spam (internal variable by Qualtrics):
+
+
+```{r}
+#| label: remove flagged as spam
+#| echo: true
+#| warning: false
+
+print("Number of participants flagged as spam")
+## t1
+sum(survey_p1_t1$check_SPAM, na.rm = TRUE)
+sum(survey_p2_t1$check_SPAM, na.rm = TRUE)
+
+## t2
+sum(survey_p1_t2$check_SPAM, na.rm = TRUE)
+sum(survey_p2_t2$check_SPAM, na.rm = TRUE)
+
+## t2 control group
+sum(survey_p1_t2_controlGroup$check_SPAM, na.rm = TRUE)
+sum(survey_p2_t2_controlGroup$check_SPAM, na.rm = TRUE)
+
+
+if (global_removeSpam) {
+  print("participants flagged as spam are removed")
+  ## t1
+  survey_p1_t1 <- survey_p1_t1[!survey_p1_t1$check_SPAM ,]
+  survey_p2_t1 <- survey_p2_t1[!survey_p2_t1$check_SPAM ,]
+
+  ## t2
+  survey_p1_t2 <- survey_p1_t2[!survey_p1_t2$check_SPAM ,]
+  survey_p2_t2 <- survey_p2_t2[!survey_p2_t2$check_SPAM ,]
+  
+  ## t2 control group
+  survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup[!survey_p1_t2_controlGroup$check_SPAM ,]
+  survey_p2_t2_controlGroup <- survey_p2_t2_controlGroup[!survey_p2_t2_controlGroup$check_SPAM ,]
+}
+```
+
+2) remove participants with multiple identical IPs (if IPs are greater / equal then `r global_removeIPs_num`):
+
+
+We assume, that multiple IPs could result of bots and at first we removed all participants who have drawn "fake CAMs" (not containing one reasonable / existent word):
+
+```{r}
+#| label: remove fake CAMs
+#| echo: true
+#| warning: false
+
+print("Number of participants flagged as spam")
+## t1
+round(x = (
+  nrow(survey_p1_t1) - sum(survey_p1_t1$participantID %in% names(CAMdrawn_t1_clean))
+) / nrow(survey_p1_t1) * 100,
+digits = 0)
+
+round(x = (
+  nrow(survey_p2_t1) - sum(survey_p2_t1$participantID %in% names(CAMdrawn_t1_clean))
+) / nrow(survey_p2_t1) * 100,
+digits = 0)
+
+## t2
+round(x = (
+  nrow(survey_p1_t2) - sum(survey_p1_t2$participantID %in% names(CAMdrawn_t2_clean))
+) / nrow(survey_p1_t2) * 100,
+digits = 0)
+
+round(x = (
+  nrow(survey_p2_t2) - sum(survey_p2_t2$participantID %in% names(CAMdrawn_t2_clean))
+) / nrow(survey_p2_t2) * 100,
+digits = 0)
+
+## t2 control group
+round(x = (
+  nrow(survey_p1_t2_controlGroup) - sum(survey_p1_t2_controlGroup$participantID %in% names(CAMdrawn_t2_controlGroup_clean))
+) / nrow(survey_p1_t2_controlGroup) * 100,
+digits = 0)
+
+round(x = (
+  nrow(survey_p2_t2_controlGroup) - sum(survey_p2_t2_controlGroup$participantID %in% names(CAMdrawn_t2_controlGroup_clean))
+) / nrow(survey_p2_t2_controlGroup) * 100,
+digits = 0)
+
+
+if (global_removeFakeCAMs) {
+  ## t1
+   survey_p1_t1 <-
+    survey_p1_t1[survey_p1_t1$participantID %in% names(CAMdrawn_t1_clean), ]
+     survey_p2_t1 <-
+    survey_p2_t1[survey_p2_t1$participantID %in% names(CAMdrawn_t1_clean), ]
     
-    for(j in 1:length(tmpWords_summarized)){
-      # cat("i:", i, "j:", j, "\n")
-          raw_CAM_Germany_translated[[i]]$nodes$text[raw_CAM_Germany_translated[[i]]$nodes$isActive][j] <-     translatedWords$Translation[translatedWords$Words %in% tmpWords_summarized[j]]
-    }
-  }
-
+     ## t2
+       survey_p1_t2 <-
+    survey_p1_t2[survey_p1_t2$participantID %in% names(CAMdrawn_t2_clean), ]
+       survey_p2_t2 <-
+    survey_p2_t2[survey_p2_t2$participantID %in% names(CAMdrawn_t2_clean), ]
+       
+     ## t2 control group
+    survey_p1_t2_controlGroup <-
+    survey_p1_t2_controlGroup[survey_p1_t2_controlGroup$participantID %in% names(CAMdrawn_t2_controlGroup_clean), ]
+    
+      survey_p2_t2_controlGroup <-
+    survey_p2_t2_controlGroup[survey_p2_t2_controlGroup$participantID %in% names(CAMdrawn_t2_controlGroup_clean), ]
 }
 
 
-
-
-### get CAM data
-writeLines("", "outputs/CAMdata_Germany_translated.txt") # create file
-text_connection <- file("outputs/CAMdata_Germany_translated.txt", "a") # open connection to append
-
-for(i in 1:length(raw_CAM_Germany_translated)){
-      writeLines(jsonlite::toJSON(x = raw_CAM_Germany_translated[[i]], pretty = FALSE, auto_unbox = FALSE), text_connection)
-
-}
-
-close(text_connection) # close connection
+## participants who participated multiple times have also drawn fake CAMs
+sort(table(survey_p1_t1$IPAddress), decreasing = TRUE)[1:10]
 ```
 
 
-### save CAMs as .json files, and as .png (igraph)
-
-
-
-```{r saveCAMs_pictures_Germany, message = FALSE}
-if(save_CAMs_as_pictures){
-  setwd("outputs")
-
-setwd("savedCAMs_Germany")
-setwd("png")
-### remove all files if there are any
-if(length(list.files()) >= 1){
-  file.remove(list.files())
-  cat('\n!
-      all former .png files have been deleted')
-}
-
-### if no participant ID was provided replace by randomly generated CAM ID
-
-if(all(CAMfiles_Germany[[3]]$participantCAM.x == "noID")){
-  CAMfiles_Germany[[3]]$participantCAM.x <- CAMfiles_Germany[[3]]$CAM.x
-}
-
-### save as .json files, and as .png (igraph)
-ids_CAMs <- unique(CAMfiles_Germany[[3]]$participantCAM.x); length(ids_CAMs)
-
-
-for(i in 1:length(ids_CAMs)){
-  save_graphic(filename = paste0(ids_CAMs[i]))
-  CAM_igraph <- CAMdrawn_Germany[[c(1:length(CAMdrawn_Germany))[
-    names(CAMdrawn_Germany) == paste0(unique(CAMfiles_Germany[[3]]$participantCAM.x)[i])]]]
-  plot(CAM_igraph, edge.arrow.size = .7,
-       layout=layout_nicely, vertex.frame.color="black", asp = .5, margin = -0.1,
-       vertex.size = 10, vertex.label.cex = .9)
-  dev.off()
-}
-
-setwd("../json")
-### remove all files if there are any
-if(length(list.files()) >= 1){
-  file.remove(list.files())
-  cat('\n!
-      all former .json files have been deleted')
-}
-for(i in 1:length(raw_CAM_Germany)){
-  if(!is_empty(raw_CAM_Germany[[i]]$nodes)){
-    if(nrow(raw_CAM_Germany[[i]]$nodes) > 5){
-      write(toJSON(raw_CAM_Germany[[i]], encoding = "UTF-8"),
-            paste0(raw_CAM_Germany[[i]]$idCAM, ".json"))
-    }
-  }
-}
-}
-```
-
-
-### for USA
-
-
-```{r, message = FALSE}
-setwd("outputs")
-suppressMessages(read_file("CAMdata_USA.txt") %>%
-  # ... split it into lines ...
-  str_split('\n') %>% first() %>%
-                   # ... filter empty rows ...
-                   discard(function(x) x == '') %>%
-                   discard(function(x) x == '\r')) -> dat_CAM_USA
-
-raw_CAM_USA <- list()
-for(i in 1:length(dat_CAM_USA)){
-  raw_CAM_USA[[i]] <- jsonlite::fromJSON(txt = dat_CAM_USA[[i]])
-}
-```
-
-Create CAM files, draw CAMs and compute network indicators
-
-```{r, message = FALSE}
-########################################
-# create CAM single files (nodes, connectors, merged)
-########################################
-CAMfiles_USA <- create_CAMfiles(datCAM = raw_CAM_USA, reDeleted = TRUE)
-
-########################################
-# draw CAMs
-########################################
-CAMdrawn_USA <- draw_CAM(dat_merged = CAMfiles_USA[[3]],
-                     dat_nodes = CAMfiles_USA[[1]],ids_CAMs = "all",
-                     plot_CAM = FALSE,
-                     useCoordinates = TRUE,
-                     relvertexsize = 3,
-                     reledgesize = 1)
-
-########################################
-# draw CAMs
-########################################
-tmp_microIndicator <- c("Climate Change")
-networkIndicators_USA <- compute_indicatorsCAM(drawn_CAM = CAMdrawn_USA, 
-                                           micro_degree = tmp_microIndicator, 
-                                           micro_valence = tmp_microIndicator, 
-                                           micro_centr_clo = tmp_microIndicator, 
-                                           micro_transitivity = tmp_microIndicator, 
-                                           largestClique = FALSE)
-
-########################################
-# wordlists
-########################################
-CAMwordlist_USA <- create_wordlist(
-  dat_nodes =  CAMfiles_USA[[1]],
-  dat_merged =  CAMfiles_USA[[3]],
-  order = "frequency",
-  splitByValence = FALSE,
-  comments = TRUE,
-  raterSubsetWords = NULL,
-  rater = FALSE
-)
-
-DT::datatable(CAMwordlist_USA, options = list(pageLength = 5)) 
-```
-
-
-
-### save CAMs as .json files, and as .png (igraph)
-
-```{r saveCAMs_pictures_USA, message = FALSE}
-if(save_CAMs_as_pictures){
-  setwd("outputs")
-
-setwd("savedCAMs_USA")
-setwd("png")
-### remove all files if there are any
-if(length(list.files()) >= 1){
-  file.remove(list.files())
-  cat('\n!
-      all former .png files have been deleted')
-}
-
-### if no participant ID was provided replace by randomly generated CAM ID
-
-if(all(CAMfiles_USA[[3]]$participantCAM.x == "noID")){
-  CAMfiles_USA[[3]]$participantCAM.x <- CAMfiles_USA[[3]]$CAM.x
-}
-
-### save as .json files, and as .png (igraph)
-ids_CAMs <- unique(CAMfiles_USA[[3]]$participantCAM.x); length(ids_CAMs)
-
-
-for(i in 1:length(ids_CAMs)){
-  save_graphic(filename = paste0(ids_CAMs[i]))
-  CAM_igraph <- CAMdrawn_USA[[c(1:length(CAMdrawn_USA))[
-    names(CAMdrawn_USA) == paste0(unique(CAMfiles_USA[[3]]$participantCAM.x)[i])]]]
-  plot(CAM_igraph, edge.arrow.size = .7,
-       layout=layout_nicely, vertex.frame.color="black", asp = .5, margin = -0.1,
-       vertex.size = 10, vertex.label.cex = .9)
-  dev.off()
-}
-
-setwd("../json")
-### remove all files if there are any
-if(length(list.files()) >= 1){
-  file.remove(list.files())
-  cat('\n!
-      all former .json files have been deleted')
-}
-for(i in 1:length(raw_CAM_USA)){
-  if(!is_empty(raw_CAM_USA[[i]]$nodes)){
-    if(nrow(raw_CAM_USA[[i]]$nodes) > 5){
-      write(toJSON(raw_CAM_USA[[i]], encoding = "UTF-8"),
-            paste0(raw_CAM_USA[[i]]$idCAM, ".json"))
-    }
-  }
-}
-}
-```
-
-
-
-## merge data 
+In the next step the remaining multiple IPs are investigated and removed if bots / participants gave identical socio-demographical information (considering "age", "education", "gender"):
 
 ```{r}
-dim(questionnaire_Germany)
-dim(questionnaire_USA)
+#| label: remove multiple IPs while considering socio-demographics
+#| echo: true
+#| warning: false
 
-## order according to variable names
-questionnaire_Germany <- questionnaire_Germany[ , order(names(questionnaire_Germany))]
-questionnaire_USA <- questionnaire_USA[ , order(names(questionnaire_USA))]
-
-
-## add CAM network indicators
-questionnaire_CAM_Germany <- cbind(questionnaire_Germany, networkIndicators_Germany)
-questionnaire_CAM_Germany$country.x <- NULL
-questionnaire_CAM_Germany$country.y <- NULL
-questionnaire_CAM_Germany$country <- "Germany"
+if(global_removeIPs){
+  tmp_IDs <-
+  names(table(survey_p1_t1$IPAddress[survey_p1_t1$check_IP]))[table(survey_p1_t1$IPAddress[survey_p1_t1$check_IP]) >= 2] # !!!
 
 
-dim(questionnaire_USA); dim(networkIndicators_USA)
-questionnaire_CAM_USA <- cbind(questionnaire_USA, networkIndicators_USA)
-questionnaire_CAM_USA$country.x <- NULL
-questionnaire_CAM_USA$country.y <- NULL
-questionnaire_CAM_USA$country <- "USA"
-
-
-################# IDs who have participated
-tmp_dat <- questionnaire_CAM_USA[, c("PROLIFIC_PID", "ID")]
-write.xlsx2(x = tmp_dat, file = "outputs/PROLIFIC_PIDs_USA_Participated.xlsx")
-
-
-colnames(questionnaire_CAM_Germany)[75:78] <- colnames(questionnaire_CAM_USA)[75:78]
-
-if(all(colnames(questionnaire_CAM_Germany) == colnames(questionnaire_CAM_USA))){
-  print("questionnaires, CAM data sets can be merged!")
-  questionnaireCAMs <- rbind(questionnaire_CAM_Germany, questionnaire_CAM_USA)
+for (i in 1:length(tmp_IDs)) {
+  #### at t1
+  ## temporary data set of person with multiple IPs
+  tmp_dat_p1_t1 <- survey_p1_t1[survey_p1_t1$IPAddress == tmp_IDs[i], ]
+  tmp_dat_p2_t1 <-
+    survey_p2_t1[survey_p2_t1$participantID %in% tmp_dat_p1_t1$participantID, ]
+  ## person also participated in part 2
+  tmp_dat_p1_t1 <-
+    tmp_dat_p1_t1[tmp_dat_p1_t1$participantID %in% tmp_dat_p2_t1$participantID, ]
+  tmp_dat_p2_t1 <-
+    tmp_dat_p2_t1[tmp_dat_p2_t1$participantID %in% tmp_dat_p1_t1$participantID, ]
+  ## person also a matching ID in the "df_IDs" data set
+  tmp_dat_p1_t1 <-
+    tmp_dat_p1_t1[tmp_dat_p1_t1$participantID %in% df_IDs$participantID.wave1, ]
+  tmp_dat_p2_t1 <-
+    tmp_dat_p2_t1[tmp_dat_p2_t1$participantID %in% df_IDs$participantID.wave1, ]
   
-  ## save file
-  setwd("outputs")
-  xlsx::write.xlsx2(x = questionnaireCAMs, file = "questionnaireCAMs.xlsx")
-  write.csv2(x = questionnaireCAMs, file = "questionnaireCAMs.csv")
-  saveRDS(object = questionnaireCAMs, file = "questionnaireCAMs.rds")
+  if (nrow(tmp_dat_p2_t1) > 1) {
+    cat("following IP is investigated:", tmp_dat_p2_t1$IPAddres[1], "\n")
+  }
+  
+  
+  ## check compatibility of IDs
+  tmp_ID <-
+    df_IDs[df_IDs$participantID.wave1 %in% tmp_dat_p1_t1$participantID, ]
+  
+  ## check only IDs who finished study
+  if (sum(tmp_ID$participantID.wave2 %in% survey_p2_t2$participantID) >= 1) {
+    tmp_ID_finished <-
+      tmp_ID$participantID.wave1[tmp_ID$participantID.wave2 %in% survey_p2_t2$participantID]
+    tmp_ID_finished
+    
+    tmp_dat_p1_t1 <-
+      tmp_dat_p1_t1[tmp_dat_p1_t1$participantID %in% tmp_ID_finished,]
+    tmp_dat_p2_t1 <-
+      tmp_dat_p2_t1[tmp_dat_p2_t1$participantID %in% tmp_ID_finished,]
+    
+    
+    ## keep only unique data sets
+    tmp_keep <-
+      unique(tmp_dat_p1_t1[, c("age", "education", "gender")])
+    
+    ## > if less unique data sets then nrow of unique ID data set remove
+    if(nrow(tmp_keep) < nrow(tmp_dat_p1_t1)){
+     tmp_remove_rowname <-  rownames(tmp_dat_p1_t1)[!rownames(tmp_dat_p1_t1) %in% rownames(tmp_keep)]
+     cat("following rowname is removed:", tmp_remove_rowname, "\n")
+
+     
+     survey_p1_t1 <- survey_p1_t1[rownames(survey_p1_t1) != tmp_remove_rowname, ]
+    }
+  }
+}
+  
+  rm(tmp_dat_p1_t1)
+  rm(tmp_dat_p2_t1)
+  rm(tmp_keep)
+  rm(tmp_remove_rowname)
 }
 ```
 
+
+# Merge data sets
+
+
+```{r}
+#| label: merge data sets
+#| echo: true
+#| warning: false
+
+### remove all variables not needed for final data set
+remove_vars <- c( "Status", "IPAddress", "Progress", "Finished", "LocationLatitude", "LocationLongitude", "check_SPAM", "check_IP")
+
+## t1
+survey_p1_t1 <- survey_p1_t1[ , ! names(survey_p1_t1) %in% remove_vars]
+survey_p2_t1 <- survey_p2_t1[ , ! names(survey_p2_t1) %in% remove_vars]
+
+## t2
+survey_p1_t2 <- survey_p1_t2[ , ! names(survey_p1_t2) %in% remove_vars]
+survey_p2_t2 <- survey_p2_t2[ , ! names(survey_p2_t2) %in% remove_vars]
+
+## t2 control group
+survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup[ , ! names(survey_p1_t2_controlGroup) %in% remove_vars]
+survey_p2_t2_controlGroup <- survey_p2_t2_controlGroup[ , ! names(survey_p2_t2_controlGroup) %in% remove_vars]
+
+rm(remove_vars)
+
+
+### merge data sets -> part 1 + part 2
+nrow(survey_p1_t1)
+nrow(survey_p2_t1)
+survey_t1 <- merge(x = survey_p1_t1, y = survey_p2_t1, by = c("participantID", "participantID"))
+nrow(survey_t1)
+
+nrow(survey_p1_t2)
+nrow(survey_p2_t2)
+survey_t2 <- merge(x = survey_p1_t2, y = survey_p2_t2, by = c("participantID", "participantID"))
+nrow(survey_t2)
+
+nrow(survey_p1_t2_controlGroup)
+nrow(survey_p2_t2_controlGroup)
+survey_t2_controlGroup <- merge(x = survey_p1_t2_controlGroup, y = survey_p2_t2_controlGroup, by = c("participantID", "participantID"))
+nrow(survey_t2_controlGroup)
+
+### check if any IDs are  not unique
+## t1
+tmp_t1 <- names(table(survey_t1$participantID))[table(survey_t1$participantID) >= 2]
+tmp_t1
+## t2
+tmp_t2 <- names(table(survey_t2$participantID))[table(survey_t2$participantID) >= 2]
+tmp_t2
+## t2 control group
+tmp_t2controlGroup <- names(table(survey_t2_controlGroup$participantID))[table(survey_t2_controlGroup$participantID) >= 2]
+tmp_t2controlGroup
+
+### remove:
+if(length(tmp_t1) >= 1){
+  print(survey_t1[survey_t1$participantID %in% tmp_t1,])
+  survey_t1 <- survey_t1[!survey_t1$participantID %in% tmp_t1, ]
+}
+
+if(length(tmp_t2) >= 1){
+  print(survey_t2[survey_t2$participantID %in% tmp_t2,])
+  survey_t2 <- survey_t2[!survey_t2$participantID %in% tmp_t2, ]
+}
+
+if(length(tmp_t2controlGroup) >= 1){
+  print(survey_t2_controlGroup[survey_t2_controlGroup$participantID %in% tmp_t2controlGroup,])
+  survey_t2_controlGroup <- survey_t2_controlGroup[!survey_t2_controlGroup$participantID %in% tmp_t2controlGroup, ]
+}
+
+# survey_t1[survey_t1$participantID == "fe004c0911ba569d1d4c4190c01e4147",]
+# survey_t1 <- survey_t1[rownames(survey_t1) != "430", ]
+# survey_t1[survey_t1$participantID == "ff515ae5174e7e81d94cbec8d4a6f578",]
+# survey_t1 <- survey_t1[rownames(survey_t1) != "437", ]
+
+# survey_t2[survey_t2$participantID == "833e71b1d892bab6ccab57d1c5ae6004",]
+# survey_t2 <- survey_t2[rownames(survey_t2) != "138", ]
+# survey_t2[survey_t2$participantID == "a38c17108b62d1e9a7d21907a65eec63",]
+# survey_t2 <- survey_t2[rownames(survey_t2) != "166", ]
+
+
+
+### merge data sets -> attach CAM indicators to surveys
+survey_t1_CAM <- left_join(x = survey_t1, y = CAM_indicators_t1, by = c("participantID" = "participantCAM"))
+survey_t2_CAM <- left_join(x = survey_t2, y = CAM_indicators_t2, by = c("participantID" = "participantCAM"))
+survey_t2_controlGroup_CAM <- left_join(x = survey_t2_controlGroup, y = CAM_indicators_t2_controlGroup, by = c("participantID" = "participantCAM"))
+
+colnames(survey_t1_CAM)[21:50] <- paste0(colnames(survey_t1_CAM)[21:50] , "_t1")
+colnames(survey_t2_CAM)[30:59] <- paste0(colnames(survey_t2_CAM)[30:59] , "_t2")
+
+
+
+
+### merge data sets -> attach ID dataset to match t1 + t2
+nrow(survey_t1_CAM)
+nrow(df_IDs)
+length(unique(df_IDs$participantID.wave1))
+length(unique(df_IDs$participantID.wave2))
+
+
+
+## t1
+nrow(df_IDs)
+nrow(survey_t1_CAM)
+sum(survey_t1_CAM$participantID %in% df_IDs$participantID.wave1)
+
+## t2
+nrow(df_IDs)
+nrow(survey_t2_CAM)
+sum(survey_t2_CAM$participantID %in% df_IDs$participantID.wave2)
+
+
+
+
+survey_t1_CAM_IDs_2 <- left_join(survey_t1_CAM, df_IDs,  by = c("participantID" = "participantID.wave1"))
+
+
+survey_t1_CAM_IDs <- merge(survey_t1_CAM, df_IDs, by.x="participantID", by.y="participantID.wave1")
+
+### need to do this!!! otherwise there are so many duplicated participantIDs and thus duplicated rows
+df_IDs_wave2 <- df_IDs %>% select(participantID.wave2)
+df_IDs_wave2 <- unique(df_IDs_wave2)
+survey_t2_CAM_IDs <- merge(survey_t2_CAM, df_IDs_wave2, by.x="participantID", by.y="participantID.wave2")
+```
+
+
+# References
