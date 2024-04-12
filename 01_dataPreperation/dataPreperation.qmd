@@ -1017,6 +1017,66 @@ chisq.test(survey_p1_t1$check_SPAM, survey_p1_t1$check_IP)
 ```
 
 
+which are also related to participants, who not have finished the study: 
+
+```{r}
+#| label: dependency filters to not finished
+#| echo: true
+#| warning: false
+
+table(survey_p1_t1$Finished, survey_p1_t1$check_SPAM)
+chisq.test(survey_p1_t1$Finished, survey_p1_t1$check_SPAM)
+
+table(survey_p1_t1$Finished, survey_p1_t1$check_IP)
+chisq.test(survey_p1_t1$Finished, survey_p1_t1$check_IP)
+```
+0) remove participants who not have finished the study (internal variable by Qualtrics):
+
+
+```{r}
+#| label: remove who not finished study
+#| echo: true
+#| warning: false
+
+
+# head(survey_p1_t1[survey_p1_t1$Finished == TRUE & !is.na(survey_p1_t1$Finished),])
+# not finished
+head(survey_p1_t1[survey_p1_t1$Finished == FALSE & !is.na(survey_p1_t1$Finished),])
+# missing data
+head(survey_p1_t1[is.na(survey_p1_t1$Finished),])
+
+print("Number of participants who have finished the study")
+## t1
+sum(survey_p1_t1$Finished, na.rm = TRUE)
+sum(survey_p2_t1$Finished, na.rm = TRUE)
+
+## t2
+sum(survey_p1_t2$Finished, na.rm = TRUE)
+sum(survey_p2_t2$Finished, na.rm = TRUE)
+
+## t2 control group
+sum(survey_p1_t2_controlGroup$Finished, na.rm = TRUE)
+sum(survey_p2_t2_controlGroup$Finished, na.rm = TRUE)
+
+
+if (global_removeSpam) {
+  print("keep only particpants who have finished the study")
+  ## t1
+  survey_p1_t1 <- survey_p1_t1[survey_p1_t1$Finished ,]
+  survey_p2_t1 <- survey_p2_t1[survey_p2_t1$Finished ,]
+
+  ## t2
+  survey_p1_t2 <- survey_p1_t2[survey_p1_t2$Finished ,]
+  survey_p2_t2 <- survey_p2_t2[survey_p2_t2$Finished ,]
+  
+  ## t2 control group
+  survey_p1_t2_controlGroup <- survey_p1_t2_controlGroup[survey_p1_t2_controlGroup$Finished ,]
+  survey_p2_t2_controlGroup <- survey_p2_t2_controlGroup[survey_p2_t2_controlGroup$Finished ,]
+}
+```
+
+
+
 1) remove participants flagged as spam (internal variable by Qualtrics):
 
 
@@ -1098,6 +1158,7 @@ round(x = (
   nrow(survey_p2_t2_controlGroup) - sum(survey_p2_t2_controlGroup$participantID %in% names(CAMdrawn_t2_controlGroup_clean))
 ) / nrow(survey_p2_t2_controlGroup) * 100,
 digits = 0)
+
 
 
 if (global_removeFakeCAMs) {
@@ -1292,37 +1353,103 @@ colnames(survey_t2_CAM)[30:59] <- paste0(colnames(survey_t2_CAM)[30:59] , "_t2")
 
 
 
-### merge data sets -> attach ID dataset to match t1 + t2
-nrow(survey_t1_CAM)
+### merge data sets -> attach ID data set to match t1 + t2
+# for t1 it is possible (unique IDs)
 nrow(df_IDs)
 length(unique(df_IDs$participantID.wave1))
-length(unique(df_IDs$participantID.wave2))
-
-
-
-## t1
-nrow(df_IDs)
 nrow(survey_t1_CAM)
-sum(survey_t1_CAM$participantID %in% df_IDs$participantID.wave1)
+survey_t1_CAM_IDs <- left_join(survey_t1_CAM, df_IDs,  by = c("participantID" = "participantID.wave1"))
+nrow(survey_t1_CAM_IDs)
 
-## t2
+
+# for t2 it is not possible (not unique IDs)
 nrow(df_IDs)
+length(unique(df_IDs$participantID.wave2))
+# !!!
 nrow(survey_t2_CAM)
-sum(survey_t2_CAM$participantID %in% df_IDs$participantID.wave2)
+survey_t2_CAM_IDs <- left_join(survey_t2_CAM, df_IDs,  by = c("participantID" = "participantID.wave2"))
+nrow(survey_t2_CAM_IDs)
 
 
 
+df_IDs_t2 <- data.frame(participantID.wave1 = NA, participantID.wave2 = NA)
+h = 1
+n = 1
+for(i in 1:nrow(survey_t2_CAM)){
+  tmp <- df_IDs[df_IDs$participantID.wave2 %in% survey_t2_CAM$participantID[i],]
+  
+  tmp_boolean <- tmp$participantID.wave1 %in% survey_t1_CAM_IDs$participantID
+  
+  if(sum(tmp_boolean) == 1){
+    tmp_out <- tmp[tmp_boolean,]
+    df_IDs_t2[h,] <- tmp_out
+    h = h + 1
+  }else if(sum(tmp_boolean) == 0){
+    cat("\n for ID: \"", survey_t2_CAM$participantID[i], "\" no match can be found\n")
+    n = n + 1
+  }else{
+    cat("\n for ID: \"", survey_t2_CAM$participantID[i], "\" too many matches can be found\n")
+  }
+}
 
-survey_t1_CAM_IDs_2 <- left_join(survey_t1_CAM, df_IDs,  by = c("participantID" = "participantID.wave1"))
+nrow(survey_t2_CAM)
+survey_t2_CAM_IDs <- left_join(survey_t2_CAM, df_IDs_t2,  by = c("participantID" = "participantID.wave2"))
+nrow(survey_t2_CAM_IDs)
+
+## no matching IDs found for wave 1, wave 2
+sum(is.na(survey_t1_CAM_IDs$participantID.wave2))
+sum(is.na(survey_t2_CAM_IDs$participantID.wave1))
 
 
-survey_t1_CAM_IDs <- merge(survey_t1_CAM, df_IDs, by.x="participantID", by.y="participantID.wave1")
 
-### need to do this!!! otherwise there are so many duplicated participantIDs and thus duplicated rows
-df_IDs_wave2 <- df_IDs %>% select(participantID.wave2)
-df_IDs_wave2 <- unique(df_IDs_wave2)
-survey_t2_CAM_IDs <- merge(survey_t2_CAM, df_IDs_wave2, by.x="participantID", by.y="participantID.wave2")
+nrow(df_IDs_t2)
+
+survey_t12_keept1 <- left_join(survey_t1_CAM_IDs, survey_t2_CAM_IDs,  by = c("participantID" = "participantID.wave1"))
+nrow(survey_t12_keept1)
+
+survey_t12_keept2 <- left_join(survey_t2_CAM_IDs, survey_t1_CAM_IDs,  by = c("participantID" = "participantID.wave2"))
+nrow(survey_t12_keept2)
+
+
+survey_t12_keept12 <- full_join(survey_t1_CAM_IDs, survey_t2_CAM_IDs,  by = c("participantID" = "participantID.wave1"))
+nrow(survey_t12_keept12)
+
+
+survey_t12 <- merge(survey_t1_CAM_IDs, survey_t2_CAM_IDs, by.x="participantID", by.y="participantID.wave1")
+nrow(survey_t12)
+```
+
+```{r}
+# check for plausibility
+plot(survey_t12$mean_valence_macro_t1, survey_t12$mean_valence_macro_t2)
+cor(survey_t12$mean_valence_macro_t1, survey_t12$mean_valence_macro_t2)
+
+
+cor(survey_t12_keept12$mean_valence_macro_t1, survey_t12_keept12$mean_valence_macro_t2, use = "pairwise")
+sum(is.na(survey_t12_keept12$mean_valence_macro_t1))
+sum(is.na(survey_t12_keept12$mean_valence_macro_t2))
+```
+# save files
+
+```{r}
+#| label: save final files
+#| echo: true
+#| warning: false
+
+setwd("outputs")
+
+## full join
+xlsx::write.xlsx2(x = survey_t12_keept12, file = "survey_t12_keept12.xlsx")
+write.csv2(x = survey_t12_keept12, file = "survey_t12_keept12.csv")
+saveRDS(object = survey_t12_keept12, file = "survey_t12_keept12.rds")
+
+## merge (only keep date which can be completely matched)
+xlsx::write.xlsx2(x = survey_t12, file = "survey_t12.xlsx")
+write.csv2(x = survey_t12, file = "survey_t12.csv")
+saveRDS(object = survey_t12, file = "survey_t12.rds")
 ```
 
 
+
 # References
+
