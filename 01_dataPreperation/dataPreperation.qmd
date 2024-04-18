@@ -616,9 +616,9 @@ CAM_files_t2 <- create_CAMfiles(datCAM = dfCAM_t2_list, reDeleted = TRUE, verbos
 ## t2 control group
 CAM_files_t2_controlGroup <- create_CAMfiles(datCAM = dfCAM_t2_controlGroup_list, reDeleted = TRUE, verbose = FALSE)
 
-rm(dfCAM_t1_list)
-rm(dfCAM_t2_list)
-rm(dfCAM_t2_controlGroup_list)
+# rm(dfCAM_t1_list)
+# rm(dfCAM_t2_list)
+# rm(dfCAM_t2_controlGroup_list)
 
 ### remove CAMs with no valid ID
 ## t1
@@ -1431,6 +1431,7 @@ sum(is.na(survey_t12_keept12$mean_valence_macro_t2))
 ```
 # save files
 
+
 ```{r}
 #| label: save final files
 #| echo: true
@@ -1438,15 +1439,101 @@ sum(is.na(survey_t12_keept12$mean_valence_macro_t2))
 
 setwd("outputs")
 
-## full join
+## full join, keep all data
 xlsx::write.xlsx2(x = survey_t12_keept12, file = "survey_t12_keept12.xlsx")
 write.csv2(x = survey_t12_keept12, file = "survey_t12_keept12.csv")
 saveRDS(object = survey_t12_keept12, file = "survey_t12_keept12.rds")
 
-## merge (only keep date which can be completely matched)
+## merge (only keep data which can be completely matched)
 xlsx::write.xlsx2(x = survey_t12, file = "survey_t12.xlsx")
 write.csv2(x = survey_t12, file = "survey_t12.csv")
 saveRDS(object = survey_t12, file = "survey_t12.rds")
+
+## and save control group
+xlsx::write.xlsx2(x = survey_t2_controlGroup_CAM, file = "survey_t2_controlGroup.xlsx")
+write.csv2(x = survey_t2_controlGroup_CAM, file = "survey_t2_controlGroup.csv")
+saveRDS(object = survey_t2_controlGroup_CAM, file = "survey_t2_controlGroup.rds")
+```
+
+
+## check CAM IDs matching to merge data set and save CAM files
+
+```{r}
+#| label: save final CAM files
+#| echo: true
+#| warning: false
+
+nrow(survey_t12)
+length(unique(survey_t12$participantID))
+length(unique(CAM_files_t1[[1]]$participantCAM))
+length(unique(CAM_files_t2[[1]]$participantCAM))
+
+all(survey_t12$participantID %in% CAM_files_t1[[1]]$participantCAM)
+all(survey_t12$participantID.wave2 %in% CAM_files_t2[[1]]$participantCAM)
+
+
+nrow(survey_t2_controlGroup_CAM)
+length(unique(survey_t2_controlGroup_CAM$participantID))
+length(unique(CAM_files_t2_controlGroup[[1]]$participantCAM))
+
+all(survey_t2_controlGroup_CAM$participantID %in% CAM_files_t2_controlGroup[[1]]$participantCAM)
+
+
+## check if all IDs are unique
+names(table(c(survey_t12$participantID, survey_t12$participantID.wave2, survey_t2_controlGroup_CAM$participantID)))[table(c(survey_t12$participantID, survey_t12$participantID.wave2, survey_t2_controlGroup_CAM$participantID)) >= 2]
+
+
+
+### save CAMs
+setwd("outputs/data CAMs")
+
+writeLines("", "CAMdata_ClimateLaw.txt") # create file
+text_connection <- file("CAMdata_ClimateLaw.txt", "a") # open connection to append
+
+
+vec_ids <- c(); h = 1
+
+## for survey_t12 - t1
+for(i in 1:length(dfCAM_t1_list)){
+    if(!is.null(dfCAM_t1_list[[i]]$creator) && dfCAM_t1_list[[i]]$creator %in% unique(survey_t12$participantID)){
+    vec_ids[h] <- dfCAM_t1_list[[i]]$creator
+    h = h + 1
+    
+    writeLines(jsonlite::toJSON(x =  dfCAM_t1_list[[i]]), text_connection)
+  }
+}
+
+
+## for survey_t12 - t2
+for(i in 1:length(dfCAM_t2_list)){
+    if(!is.null(dfCAM_t2_list[[i]]$creator) && dfCAM_t2_list[[i]]$creator %in% unique(survey_t12$participantID.wave2)){
+    vec_ids[h] <- dfCAM_t2_list[[i]]$creator
+    h = h + 1
+    
+    writeLines(jsonlite::toJSON(x =  dfCAM_t2_list[[i]]), text_connection)
+  }
+}
+
+
+## for survey_t2_controlGroup_CAM
+for(i in 1:length(dfCAM_t2_controlGroup_list)){
+    if(!is.null(dfCAM_t2_controlGroup_list[[i]]$creator) && dfCAM_t2_controlGroup_list[[i]]$creator %in% unique(survey_t2_controlGroup_CAM$participantID)){
+    vec_ids[h] <- dfCAM_t2_controlGroup_list[[i]]$creator
+    h = h + 1
+    
+    writeLines(jsonlite::toJSON(x =  dfCAM_t2_controlGroup_list[[i]]), text_connection)
+  }
+}
+
+
+
+close(text_connection)
+
+
+
+if(all(vec_ids %in% c(survey_t12$participantID, survey_t12$participantID.wave2, survey_t2_controlGroup_CAM$participantID))){
+  print("all CAMs saved")
+}
 ```
 
 
